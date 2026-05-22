@@ -97,10 +97,10 @@ describe('buildCFE — agrupación de líneas por producto', () => {
       makeDetalleRow({
         packs: 6,
         unidades_sueltas: 4,
-        precio_empaque: 8952,   // > 0 para que hasPacks sea true
+        precio_empaque: 1492,   // precio por 1 empaque (4 uds × $373)
         precio_unidad: 373,
         descuento_aplicado: 298.40,     // sueltas 20%
-        descuento_packs_aplicado: 8952, // packs 100%
+        descuento_packs_aplicado: 8952, // packs 100% (6 × 1492)
       }),
     ]);
     const cfe = await buildCFE(1);
@@ -112,7 +112,7 @@ describe('buildCFE — agrupación de líneas por producto', () => {
       makeDetalleRow({
         packs: 6,
         unidades_sueltas: 4,
-        precio_empaque: 8952,
+        precio_empaque: 1492,
         precio_unidad: 373,
         descuento_aplicado: 298.40,
         descuento_packs_aplicado: 8952,
@@ -125,15 +125,15 @@ describe('buildCFE — agrupación de líneas por producto', () => {
   });
 
   it('packs + sueltas mismo producto → verificación matemática completa', async () => {
-    // packs: 6 x 4 = 24 unidades a $373 → monto 8952, desc 8952 (100%)
+    // packs: 6 x 4 = 24 unidades a $373 → monto packs = 6×1492 = 8952, desc 8952 (100%)
     // sueltas: 4 unidades a $373 → monto 1492, desc 298.40 (20%)
     // totalMonto = 10444, totalDescTotal = 9250.40, montoNeto = 1193.60
-    // descPct = 9250.40 / 10444 * 100 = 88.58%
+    // descPct = 9250.40 / 10444 * 100 = 88.57%
     setupMocks([
       makeDetalleRow({
         packs: 6,
         unidades_sueltas: 4,
-        precio_empaque: 8952,
+        precio_empaque: 1492,
         precio_unidad: 373,
         descuento_aplicado: 298.40,
         descuento_packs_aplicado: 8952,
@@ -142,8 +142,8 @@ describe('buildCFE — agrupación de líneas por producto', () => {
     const cfe = await buildCFE(1);
     const linea = cfe.Detalle[0];
 
-    assert.equal(linea.IteCantidad, '28.000',          '24 packs + 4 sueltas = 28 unidades');
-    assert.equal(linea.ItePrecioUnitario, '373.0000',  'precio promedio ponderado = 373');
+    assert.equal(linea.IteCantidad, '28.000',          '24 pack-units + 4 sueltas = 28 unidades');
+    assert.equal(linea.ItePrecioUnitario, '373.0000',  'precio promedio ponderado = 10444/28 = 373');
     assert.equal(linea.IteMontoItem, '1193.60',        'monto neto = 10444 - 9250.40');
     assert.equal(linea.IteDescuentoMonto, '9250.40',   'descuento total acumulado');
     assert.equal(linea.IteDescuentoPct, '88.57',       'porcentaje real de descuento');
@@ -155,7 +155,7 @@ describe('buildCFE — agrupación de líneas por producto', () => {
       makeDetalleRow({
         packs: 6,
         unidades_sueltas: 4,
-        precio_empaque: 8952,
+        precio_empaque: 1492,
         precio_unidad: 373,
         descuento_aplicado: 298.40,
         descuento_packs_aplicado: 8952,
@@ -170,7 +170,7 @@ describe('buildCFE — agrupación de líneas por producto', () => {
       makeDetalleRow({
         packs: 6,
         unidades_sueltas: 0,
-        precio_empaque: 8952,
+        precio_empaque: 1492,
         precio_unidad: 373,
         descuento_aplicado: 0,
         descuento_packs_aplicado: 0,

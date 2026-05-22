@@ -101,7 +101,7 @@ export async function buildCFE(ventaId) {
 
     // Para la línea de empaques expresamos en unidades totales con descripción del empaque
     const unidadesPacks = packs * packSize;
-    const montoPacksBruto = hasPacks ? round2(unidadesPacks * precioUnidad) : 0;
+    const montoPacksBruto = hasPacks ? round2(packs * precioEmpaque) : 0;
     const montoSueltasBruto = hasSueltas ? round2(sueltas * precioUnidad) : 0;
 
     // Usar descuentos almacenados directamente (independientes por packs/sueltas)
