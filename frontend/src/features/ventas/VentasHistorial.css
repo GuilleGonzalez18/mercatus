@@ -106,14 +106,16 @@
 .export-modal-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(20, 31, 46, 0.34);
+  background: rgba(20, 31, 46, 0.58);
   animation: exportOverlayFadeIn 220ms ease;
 }
 
 .export-modal {
   position: relative;
   width: min(420px, calc(100vw - 2rem));
-  margin: 12vh auto 0;
+  margin: 5vh auto;
+  max-height: calc(100dvh - 3rem);
+  overflow-y: auto;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 18px 42px rgba(20, 30, 45, 0.24);
@@ -496,11 +498,13 @@
   white-space: nowrap;
 }
 
-.entregado-col-head {
+.entregado-col-head,
+.cfe-col-head {
   white-space: nowrap;
 }
 
-.entregado-col {
+.entregado-col,
+.cfe-col {
   justify-self: start;
 }
 
@@ -677,6 +681,106 @@
   color: #7d8797;
 }
 
+.cfe-lote-modal {
+  width: min(640px, calc(100vw - 2rem));
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.cfe-lote-empty {
+  color: #5e6e83;
+  font-size: 0.875rem;
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+.cfe-lote-count {
+  font-size: 0.825rem;
+  color: #3b4f6b;
+  margin: 0 0 0.4rem;
+}
+
+.cfe-lote-lista {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cfe-lote-items {
+  overflow-y: auto;
+  max-height: 45vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.cfe-lote-item {
+  display: grid;
+  grid-template-columns: 3rem 1fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  background: #f6f9fc;
+  border: 1px solid #dce6f4;
+  font-size: 0.8rem;
+}
+
+.cfe-lote-item.item-ok {
+  background: #e6f7ec;
+  border-color: #bfe3cc;
+}
+
+.cfe-lote-item.item-error {
+  background: #fff0f0;
+  border-color: #f5c6c6;
+}
+
+.cfe-lote-item.item-enviando {
+  background: #f0f6ff;
+  border-color: #c3d8f5;
+}
+
+.cfe-lote-item-id {
+  color: #5e6e83;
+  font-size: 0.75rem;
+}
+
+.cfe-lote-item-cliente {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cfe-lote-item-total {
+  text-align: right;
+  white-space: nowrap;
+  color: #2a3a52;
+  font-weight: 500;
+}
+
+.cfe-lote-item-estado {
+  font-size: 0.75rem;
+  white-space: nowrap;
+  color: #3b4f6b;
+}
+
+.cfe-lote-item.item-ok .cfe-lote-item-estado {
+  color: #1f7a4d;
+}
+
+.cfe-lote-item.item-error .cfe-lote-item-estado {
+  color: #b72b2b;
+}
+
+.cfe-lote-progreso {
+  font-size: 0.85rem;
+  color: #3b63aa;
+  align-self: center;
+}
+
 .cfe-modal {
   width: min(700px, calc(100vw - 2rem));
   max-height: 80vh;
@@ -698,6 +802,25 @@
   text-align: left;
   white-space: pre;
   max-height: 55vh;
+}
+
+.cfe-envio-resultado {
+  padding: 0.55rem 0.85rem;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.cfe-envio-ok {
+  background: #eafaf1;
+  color: #1a7a47;
+  border: 1px solid #a8dfc0;
+}
+.cfe-envio-error {
+  background: #fff3f3;
+  color: #c0392b;
+  border: 1px solid #f5c6c6;
+  white-space: pre-wrap;
 }
 
 @media (max-width: 599px) {

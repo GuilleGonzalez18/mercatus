@@ -657,7 +657,7 @@ export default function Ventas({
 
     const payload = {
       nombre,
-      rut: nuevoClienteForm.rut.trim() || null,
+      rut: nuevoClienteForm.numero_documento.trim() || null,
       telefono: nuevoClienteForm.telefono.trim() || null,
       correo: nuevoClienteForm.correo.trim() || null,
       direccion: nuevoClienteForm.direccion.trim() || null,
@@ -1265,11 +1265,21 @@ export default function Ventas({
 
   const emitirCfeVentaFinal = async () => {
     if (!ventaFinalizada?.id) return;
+
+    const yaEnviado = ventaFinalizada.cfe_enviado || ventaFinalizada.cfe?.autoSent;
+    if (yaEnviado) {
+      const confirmar = await appConfirm(
+        'El CFE de esta venta ya fue enviado y confirmado correctamente. Enviarlo nuevamente puede generar duplicidad de comprobantes en DGI.\n\n¿Desea forzar el reenvío de todas formas?'
+      );
+      if (!confirmar) return;
+    }
+
     setCfeLoading(true);
     try {
-      await api.sendVentaCFE(ventaFinalizada.id);
+      await api.sendVentaCFE(ventaFinalizada.id, yaEnviado);
       setVentaFinalizada((prev) => (prev ? {
         ...prev,
+        cfe_enviado: true,
         cfe: {
           ...(prev.cfe || {}),
           autoAttempted: true,
@@ -1290,8 +1300,7 @@ export default function Ventas({
         },
       } : prev));
       await appAlert(
-        'Error de comunicación con el proveedor de CFE.\n\n' +
-        'Reintente nuevamente. Si el problema persiste, valide con RPG Software.'
+        `El CFE no fue emitido.\n\n${error.message || 'Error de comunicación con el proveedor de CFE.'}`
       );
     } finally {
       setCfeLoading(false);
@@ -1431,6 +1440,7 @@ export default function Ventas({
       if (carritoKey) localStorage.removeItem(carritoKey);
       setVentaFinalizada({
         id: ventaCreada?.id ?? null,
+        cfe_enviado: ventaCreada?.cfe_enviado ?? false,
         fecha: new Date().toISOString(),
         clienteId: Number(clienteId),
         clienteNombre: cliente?.nombre || 'Cliente',
@@ -1461,7 +1471,7 @@ export default function Ventas({
           .catch(() => {}); // silencioso, no interrumpe el flujo
       }
       if (ventaCreada?.cfe?.autoAttempted && ventaCreada?.cfe?.autoError) {
-        await appAlert(`Venta registrada, pero CFE no se emitió: ${ventaCreada.cfe.autoError}`);
+        await appAlert(`Venta registrada correctamente.\n\nEl CFE no fue emitido:\n${ventaCreada.cfe.autoError}`);
       }
     } catch (error) {
       await appAlert(`No se pudo registrar la venta: ${error.message}`);
@@ -2165,8 +2175,8 @@ export default function Ventas({
                 <p className="venta-final-cfe-status venta-final-cfe-status--ok">CFE emitido correctamente.</p>
               )}
               {ventaFinalizada.cfe?.autoAttempted && ventaFinalizada.cfe?.autoError && (
-                <p className="venta-final-cfe-status venta-final-cfe-status--error">
-                  Error CFE: {ventaFinalizada.cfe.autoError}
+                <p className="venta-final-cfe-status venta-final-cfe-status--error" style={{ whiteSpace: 'pre-wrap' }}>
+                  CFE no emitido: {ventaFinalizada.cfe.autoError}
                 </p>
               )}
             </>
@@ -2227,13 +2237,6 @@ export default function Ventas({
                     placeholder="Nombre"
                     required
                     autoFocus
-                  />
-                </label>
-                <label className="ncm-label">RUT / C.I.
-                  <AppInput
-                    value={nuevoClienteForm.rut}
-                    onChange={(e) => setNuevoClienteForm((prev) => ({ ...prev, rut: e.target.value }))}
-                    placeholder="RUT / C.I."
                   />
                 </label>
                 <label className="ncm-label">Tipo de documento

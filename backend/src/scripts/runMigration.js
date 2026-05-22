@@ -932,6 +932,21 @@ const statements = [
   `,
   `CREATE UNIQUE INDEX IF NOT EXISTS uq_barrios_nombre_departamento ON public.barrios (nombre, departamento_id);`,
   barriosSeedSql,
+  // === PERMISO VENTAS VER_TODAS (v19) ===
+  `
+  DO $$
+  BEGIN
+    INSERT INTO public.permisos_rol (rol_id, recurso, accion, habilitado)
+    SELECT r.id, 'ventas', 'ver_todas', (r.nombre = 'propietario')
+    FROM public.roles r
+    WHERE r.nombre IN ('propietario', 'vendedor')
+    ON CONFLICT (rol_id, recurso, accion) DO NOTHING;
+  END$$;
+  `,
+  // === CFE_ENVIADO en ventas (v20) ===
+  `ALTER TABLE public.ventas ADD COLUMN IF NOT EXISTS cfe_enviado boolean NOT NULL DEFAULT false;`,
+  // === CFE_AUTO_ENVIO en config_empresa (v21) ===
+  `ALTER TABLE public.config_empresa ADD COLUMN IF NOT EXISTS cfe_auto_envio boolean NOT NULL DEFAULT true;`,
 ];
 
 export async function runMigration() {

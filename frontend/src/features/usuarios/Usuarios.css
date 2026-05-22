@@ -1,5 +1,6 @@
 .usuarios-main {
   padding: 1rem 1.1rem 1.3rem;
+  --app-table-max-height: calc(100dvh - 180px);
 }
 
 .usuarios-main h3 {

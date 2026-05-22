@@ -4,7 +4,8 @@
   align-items: center;
   justify-content: center;
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 42%),
     radial-gradient(circle at 80% 22%, color-mix(in srgb, var(--color-primary) 22%, transparent) 0%, transparent 34%),

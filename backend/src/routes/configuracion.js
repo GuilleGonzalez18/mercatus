@@ -45,6 +45,7 @@ configuracionRouter.put('/empresa', requireAuth, requirePropietario, async (req,
     configurado,
     pdf_factura, pdf_remito,
     cfe_ambiente,
+    cfe_auto_envio,
   } = req.body;
 
   const configErr = firstError(
@@ -113,6 +114,7 @@ configuracionRouter.put('/empresa', requireAuth, requirePropietario, async (req,
         pdf_factura          = COALESCE($26::jsonb, pdf_factura),
         pdf_remito           = COALESCE($27::jsonb, pdf_remito),
         cfe_ambiente         = COALESCE($28::varchar, cfe_ambiente),
+        cfe_auto_envio       = COALESCE($29::boolean, cfe_auto_envio),
         updated_at           = now()
       WHERE id = (SELECT id FROM public.config_empresa LIMIT 1)
       RETURNING *`,
@@ -130,7 +132,8 @@ configuracionRouter.put('/empresa', requireAuth, requirePropietario, async (req,
        logo_bg_color ?? null,
        pdf_factura != null ? JSON.stringify(pdf_factura) : null,
        pdf_remito != null ? JSON.stringify(pdf_remito) : null,
-       cfe_ambiente ?? null]
+       cfe_ambiente ?? null,
+       cfe_auto_envio ?? null]
     );
     res.json({
       ...result.rows[0],

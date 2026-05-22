@@ -11,7 +11,10 @@ import { usePermisos } from '../../core/PermisosContext';
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -403,17 +406,19 @@ export default function Estadisticas({ compact = false }) {
 
   useEffect(() => {
     loadStats();
-    const initialStockRange = getLastMonthVsCurrentRange();
-    setStockDesde(initialStockRange.desde);
-    setStockHasta(initialStockRange.hasta);
-    loadStockSerie(initialStockRange.desde, initialStockRange.hasta);
+    if (verEmpresa) {
+      const initialStockRange = getLastMonthVsCurrentRange();
+      setStockDesde(initialStockRange.desde);
+      setStockHasta(initialStockRange.hasta);
+      loadStockSerie(initialStockRange.desde, initialStockRange.hasta);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // mount-only: loadStats y loadStockSerie usan los parámetros pasados explícitamente
 
   useEffect(() => {
     const onStatsRefresh = () => {
       loadStats(desde, hasta, ownerUsuarioId);
-      loadStockSerie(stockDesde, stockHasta);
+      if (verEmpresa) loadStockSerie(stockDesde, stockHasta);
     };
     window.addEventListener('mercatus:stats-refresh', onStatsRefresh);
     return () => window.removeEventListener('mercatus:stats-refresh', onStatsRefresh);

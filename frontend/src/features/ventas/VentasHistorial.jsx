@@ -8,7 +8,7 @@ import './VentasHistorial.css';
 import { FilterSlot } from '../../shared/lib/filterPanel';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { RiFileExcel2Line } from 'react-icons/ri';
+import { RiFileExcel2Line, RiSendPlaneFill } from 'react-icons/ri';
 import { PiFilePdfBold } from 'react-icons/pi';
 import { AiFillPrinter } from 'react-icons/ai';
 import { FaReplyAll } from 'react-icons/fa6';
@@ -191,11 +191,21 @@ export default function VentasHistorial() {
   const [ticketsDesde, setTicketsDesde] = useState(todayISO());
   const [ticketsHasta, setTicketsHasta] = useState(todayISO());
   const [ticketsTipo, setTicketsTipo] = useState('factura');
+  const [ticketsFiltroFecha, setTicketsFiltroFecha] = useState('entrega');
   const [modalTipoImpresionVentaId, setModalTipoImpresionVentaId] = useState(null);
   const [entregasDesde, setEntregasDesde] = useState(todayISO());
   const [entregasHasta, setEntregasHasta] = useState(todayISO());
   const [cfeModalData, setCfeModalData] = useState(null);
   const [loadingCfeId, setLoadingCfeId] = useState(null);
+  const [enviandoCFE, setEnviandoCFE] = useState(false);
+  const [updatingCfeEnviadoId, setUpdatingCfeEnviadoId] = useState(null);
+  const [cfeLoteModalOpen, setCfeLoteModalOpen] = useState(false);
+  const [cfeLoteDesde, setCfeLoteDesde] = useState(todayISO());
+  const [cfeLoteHasta, setCfeLoteHasta] = useState(todayISO());
+  const [cfeLoteVentas, setCfeLoteVentas] = useState(null);
+  const [cfeLoteBuscando, setCfeLoteBuscando] = useState(false);
+  const [cfeLoteEnviando, setCfeLoteEnviando] = useState(false);
+  const [cfeLoteResultados, setCfeLoteResultados] = useState([]);
 
   const replicarVenta = async (ventaId) => {
     setPrintingId(ventaId);
@@ -210,11 +220,11 @@ export default function VentasHistorial() {
     }
   };
 
-  const verCFE = async (ventaId) => {
+  const verCFE = async (ventaId, cfeEnviado) => {
     setLoadingCfeId(ventaId);
     try {
       const text = await api.getVentaCFEAnnotated(ventaId);
-      setCfeModalData({ ventaId, json: text });
+      setCfeModalData({ ventaId, json: text, cfeEnviado: Boolean(cfeEnviado) });
     } catch (err) {
       await appAlert(err.message || 'No se pudo generar el CFE.');
     } finally {
@@ -881,6 +891,65 @@ export default function VentasHistorial() {
     }
   };
 
+  const toggleCfeEnviado = async (ventaId, nextValue) => {
+    if (!nextValue) {
+      const ok = await appConfirm(
+        '¿Marcar esta venta como CFE no enviado? Esto solo actualiza el registro local y no afecta lo enviado a DGI.',
+        { confirmText: 'Sí, marcar', cancelText: 'Cancelar' }
+      );
+      if (!ok) return;
+    }
+    setUpdatingCfeEnviadoId(ventaId);
+    try {
+      await api.updateVentaCfeEnviado(ventaId, nextValue);
+      setVentas((prev) =>
+        prev.map((v) => v.id === ventaId ? { ...v, cfe_enviado: nextValue } : v)
+      );
+    } catch (err) {
+      await appAlert(err.message || 'No se pudo actualizar el estado del CFE.');
+    } finally {
+      setUpdatingCfeEnviadoId(null);
+    }
+  };
+
+  const buscarVentasCfePendientes = async () => {
+    setCfeLoteBuscando(true);
+    setCfeLoteResultados([]);
+    try {
+      const result = await api.getVentasCfePendientes(cfeLoteDesde, cfeLoteHasta);
+      setCfeLoteVentas(result);
+    } catch (err) {
+      await appAlert(err.message || 'No se pudo obtener las ventas pendientes.');
+      setCfeLoteVentas(null);
+    } finally {
+      setCfeLoteBuscando(false);
+    }
+  };
+
+  const enviarCfeLote = async () => {
+    if (!cfeLoteVentas?.length) return;
+    const ok = await appConfirm(
+      `Se enviarán ${cfeLoteVentas.length} CFE pendiente(s). El proceso puede demorar varios minutos. ¿Desea continuar?`,
+      { confirmText: 'Sí, enviar', cancelText: 'Cancelar' }
+    );
+    if (!ok) return;
+    setCfeLoteEnviando(true);
+    setCfeLoteResultados([]);
+    for (const venta of cfeLoteVentas) {
+      setCfeLoteResultados((prev) => [...prev, { ventaId: venta.id, status: 'enviando' }]);
+      try {
+        await api.sendVentaCFE(venta.id, false);
+        const resultado = { ventaId: venta.id, ok: true, status: 'ok', mensaje: 'CFE emitido' };
+        setCfeLoteResultados((prev) => prev.map((r) => r.ventaId === venta.id ? resultado : r));
+        setVentas((prev) => prev.map((v) => v.id === venta.id ? { ...v, cfe_enviado: true } : v));
+      } catch (err) {
+        const resultado = { ventaId: venta.id, ok: false, status: 'error', mensaje: err.message || 'Error' };
+        setCfeLoteResultados((prev) => prev.map((r) => r.ventaId === venta.id ? resultado : r));
+      }
+    }
+    setCfeLoteEnviando(false);
+  };
+
   const toggleDetalleVenta = async (ventaId) => {
     if (expandedVentaId === ventaId) {
       setExpandedVentaId(null);
@@ -1084,7 +1153,7 @@ export default function VentasHistorial() {
               <td class="td center">${escapeHtml(v.cliente_telefono || '-')}</td>
               <td class="td">${escapeHtml(v.cliente_direccion || '-')}</td>
               <td class="td center">${escapeHtml(formatDateOnly(v.fecha_entrega))}</td>
-              <td class="td right">${escapeHtml(formatCurrency(v.total || 0))}</td>
+              <td class="td right" x:num="${Number(v.total || 0)}">${Number(v.total || 0).toFixed(2)}</td>
               <td class="td center">${escapeHtml(horarios)}</td>
               <td class="td"></td>
             </tr>
@@ -1093,7 +1162,7 @@ export default function VentasHistorial() {
         .join('');
 
       const html = `
-        <html>
+        <html xmlns:x="urn:schemas-microsoft-com:office:excel">
           <head>
             <meta charset="UTF-8" />
             <style>
@@ -1133,7 +1202,7 @@ export default function VentasHistorial() {
                   <th class="th">TELEFONO</th>
                   <th class="th">DIRECCION</th>
                   <th class="th">FECHA ENTREGA</th>
-                  <th class="th">TOTAL</th>
+                  <th class="th">TOTAL ($)</th>
                   <th class="th">HORARIOS</th>
                   <th class="th">DETALLE</th>
                 </tr>
@@ -1143,7 +1212,7 @@ export default function VentasHistorial() {
                 <tr><td colspan="8" style="border:none;height:8px"></td></tr>
                 <tr class="total-row">
                   <td colspan="5">TOTAL A RECAUDAR</td>
-                  <td class="right">${escapeHtml(formatCurrency(resumen.totalMonto || 0))}</td>
+                  <td class="right" x:num="${Number(resumen.totalMonto || 0)}">${Number(resumen.totalMonto || 0).toFixed(2)}</td>
                   <td colspan="2"></td>
                 </tr>
               </tbody>
@@ -1257,7 +1326,7 @@ export default function VentasHistorial() {
 
     setPrintingBatch(true);
     try {
-      const rows = await api.getVentas({ desde: ticketsDesde, hasta: ticketsHasta });
+      const rows = await api.getVentas({ desde: ticketsDesde, hasta: ticketsHasta, filtro_fecha: ticketsFiltroFecha });
       const ventasActivas = rows.filter((v) => !v.cancelada);
       if (ventasActivas.length === 0) {
         await appAlert('No hay ventas activas para ese rango.');
@@ -1415,6 +1484,27 @@ export default function VentasHistorial() {
         );
       },
     },
+    ...(cfeHabilitado ? [{
+      key: 'cfe',
+      header: <span className="cfe-col-head">CFE</span>,
+      mobileLabel: 'CFE',
+      mobileHide: true,
+      align: 'center',
+      render: (v) => (
+        <label className="entregado-check cfe-col" onClick={(e) => e.stopPropagation()}>
+          <AppInput
+            type="checkbox"
+            checked={Boolean(v.cfe_enviado)}
+            disabled={updatingCfeEnviadoId === v.id}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => toggleCfeEnviado(v.id, e.target.checked)}
+          />
+          <span className={`entregado-pill ${v.cfe_enviado ? 'is-on' : 'is-off'}`}>
+            {v.cfe_enviado ? 'Sí' : 'No'}
+          </span>
+        </label>
+      ),
+    }] : []),
   ];
 
   const renderExpandedVenta = (v) => {
@@ -1481,7 +1571,7 @@ export default function VentasHistorial() {
           <AppButton
             type="button"
             className="reprint-btn"
-            onClick={() => verCFE(v.id)}
+            onClick={() => verCFE(v.id, v.cfe_enviado)}
             disabled={loadingCfeId === v.id}
             title="Ver CFE (JSON)"
             aria-label="Ver CFE"
@@ -1615,6 +1705,24 @@ export default function VentasHistorial() {
             <PiFilePdfBold />
             <span className="btn-label">{exportingEntregas ? 'Procesando...' : 'Imprimir entregas'}</span>
           </AppButton>
+          {cfeHabilitado && (
+            <AppButton
+              type="button"
+              className="ventas-export-btn"
+              onClick={() => {
+                const t = todayISO();
+                setCfeLoteDesde(t);
+                setCfeLoteHasta(t);
+                setCfeLoteVentas(null);
+                setCfeLoteResultados([]);
+                setCfeLoteModalOpen(true);
+              }}
+              title="Envío CFE por lote"
+            >
+              <RiSendPlaneFill />
+              <span className="btn-label">CFE Lote</span>
+            </AppButton>
+          )}
         </div>
       </div>
       </FilterSlot>
@@ -1626,8 +1734,24 @@ export default function VentasHistorial() {
             <h4>Tickets para entrega + Remito</h4>
             <p>
               Se imprimirán o descargarán los tickets activos del rango seleccionado, uno por uno.
-              Para cada día de entrega, se respeta el orden en que se creó la venta (más antigua primero).
+              Filtrando por <strong>{ticketsFiltroFecha === 'entrega' ? 'fecha de entrega' : 'fecha de venta'}</strong>.
             </p>
+            <div className="tickets-tipo-row">
+              {[
+                { value: 'entrega', label: 'Fecha de entrega' },
+                { value: 'venta',   label: 'Fecha de venta'   },
+              ].map((op) => (
+                <AppButton
+                  key={op.value}
+                  type="button"
+                  className={`ticket-tipo-btn${ticketsFiltroFecha === op.value ? ' active' : ''}`}
+                  onClick={() => setTicketsFiltroFecha(op.value)}
+                  disabled={printingBatch}
+                >
+                  {op.label}
+                </AppButton>
+              ))}
+            </div>
             <div className="tickets-tipo-row">
               {[
                 { value: 'factura', label: 'Solo Factura' },
@@ -1896,13 +2020,136 @@ export default function VentasHistorial() {
         />
       )}
 
+      {cfeLoteModalOpen && createPortal(
+        <div className="export-modal-overlay" role="dialog" aria-modal="true">
+          <div className="export-modal-backdrop" onClick={() => !cfeLoteEnviando && setCfeLoteModalOpen(false)} />
+          <div className="export-modal cfe-lote-modal">
+            <h4>Envío CFE por lote</h4>
+            <p>Seleccione el rango de fechas y busque las ventas con CFE pendiente.</p>
+            <div className="tickets-tipo-row">
+              <label className="ventas-fecha-filter">
+                <span>Desde</span>
+                <AppInput
+                  type="date"
+                  value={cfeLoteDesde}
+                  onChange={(e) => setCfeLoteDesde(e.target.value)}
+                  disabled={cfeLoteEnviando}
+                />
+              </label>
+              <label className="ventas-fecha-filter">
+                <span>Hasta</span>
+                <AppInput
+                  type="date"
+                  value={cfeLoteHasta}
+                  onChange={(e) => setCfeLoteHasta(e.target.value)}
+                  disabled={cfeLoteEnviando}
+                />
+              </label>
+              <AppButton
+                type="button"
+                onClick={buscarVentasCfePendientes}
+                disabled={cfeLoteBuscando || cfeLoteEnviando}
+              >
+                {cfeLoteBuscando ? 'Buscando...' : 'Buscar'}
+              </AppButton>
+            </div>
+            {cfeLoteVentas !== null && (
+              cfeLoteVentas.length === 0 ? (
+                <p className="cfe-lote-empty">No hay ventas con CFE pendiente en el rango seleccionado.</p>
+              ) : (
+                <div className="cfe-lote-lista">
+                  <p className="cfe-lote-count">{cfeLoteVentas.length} venta(s) con CFE pendiente</p>
+                  <div className="cfe-lote-items">
+                    {cfeLoteVentas.map((v) => {
+                      const resultado = cfeLoteResultados.find((r) => r.ventaId === v.id);
+                      return (
+                        <div
+                          key={v.id}
+                          className={`cfe-lote-item${resultado ? (resultado.status === 'enviando' ? ' item-enviando' : resultado.ok ? ' item-ok' : ' item-error') : ''}`}
+                        >
+                          <span className="cfe-lote-item-id">#{v.id}</span>
+                          <span className="cfe-lote-item-cliente">{v.cliente_nombre || 'Consumidor final'}</span>
+                          <span className="cfe-lote-item-total">{formatCurrency(v.total)}</span>
+                          <span className="cfe-lote-item-estado">
+                            {!resultado
+                              ? '—'
+                              : resultado.status === 'enviando'
+                              ? '⟳ Enviando...'
+                              : resultado.ok
+                              ? '✓ CFE emitido'
+                              : `✗ ${resultado.mensaje}`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )
+            )}
+            <div className="export-modal-actions">
+              {cfeLoteVentas?.length > 0 &&
+                !cfeLoteEnviando &&
+                cfeLoteResultados.filter((r) => r.ok).length < cfeLoteVentas.length && (
+                  <AppButton type="button" onClick={enviarCfeLote}>
+                    Enviar lote
+                  </AppButton>
+                )}
+              {cfeLoteEnviando && (
+                <span className="cfe-lote-progreso">
+                  Enviando {cfeLoteResultados.length} / {cfeLoteVentas?.length}...
+                </span>
+              )}
+              <AppButton
+                type="button"
+                className="secundario"
+                onClick={() => { if (!cfeLoteEnviando) setCfeLoteModalOpen(false); }}
+                disabled={cfeLoteEnviando}
+              >
+                Cerrar
+              </AppButton>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
       {cfeModalData && typeof document !== 'undefined' && createPortal(
         <div className="export-modal-overlay" role="dialog" aria-modal="true" aria-label="CFE JSON">
           <div className="export-modal-backdrop" onClick={() => setCfeModalData(null)} />
           <div className="export-modal cfe-modal">
             <h4>CFE — Venta #{cfeModalData.ventaId}</h4>
             <pre className="cfe-json-pre">{cfeModalData.json}</pre>
+            {cfeModalData.envioResultado && (
+              <div className={`cfe-envio-resultado ${cfeModalData.envioResultado.ok ? 'cfe-envio-ok' : 'cfe-envio-error'}`}>
+                {cfeModalData.envioResultado.ok
+                  ? `✓ CFE emitido correctamente`
+                  : `✗ ${cfeModalData.envioResultado.error}`}
+              </div>
+            )}
             <div className="export-modal-actions">
+              <AppButton
+                type="button"
+                variant="primary"
+                disabled={enviandoCFE || Boolean(cfeModalData.envioResultado?.ok)}
+                onClick={async () => {
+                  if (cfeModalData.cfeEnviado) {
+                    const confirmar = await appConfirm(
+                      'El CFE de esta venta ya fue enviado y confirmado correctamente. Enviarlo nuevamente puede generar duplicidad de comprobantes en DGI.\n\n¿Desea forzar el reenvío de todas formas?'
+                    );
+                    if (!confirmar) return;
+                  }
+                  setEnviandoCFE(true);
+                  try {
+                    const result = await api.sendVentaCFE(cfeModalData.ventaId, cfeModalData.cfeEnviado);
+                    setCfeModalData((prev) => ({ ...prev, cfeEnviado: true, envioResultado: { ok: true, result } }));
+                  } catch (err) {
+                    setCfeModalData((prev) => ({ ...prev, envioResultado: { ok: false, error: err.message || 'Error al emitir CFE' } }));
+                  } finally {
+                    setEnviandoCFE(false);
+                  }
+                }}
+              >
+                {enviandoCFE ? 'Emitiendo…' : 'Emitir CFE'}
+              </AppButton>
               <AppButton
                 type="button"
                 onClick={() => {

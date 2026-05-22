@@ -197,7 +197,8 @@ const statements = [
     subtotal numeric(12,2) NOT NULL DEFAULT 0,
     descuento_total_tipo varchar(20) NOT NULL DEFAULT 'ninguno',
     descuento_total_valor numeric(12,2) NOT NULL DEFAULT 0,
-    total numeric(12,2) NOT NULL DEFAULT 0
+    total numeric(12,2) NOT NULL DEFAULT 0,
+    cfe_enviado boolean NOT NULL DEFAULT false
   );
   `,
   `
@@ -568,6 +569,7 @@ const statements = [
     pdf_factura jsonb NOT NULL DEFAULT '{}'::jsonb,
     pdf_remito jsonb NOT NULL DEFAULT '{}'::jsonb,
     cfe_ambiente varchar(20) NOT NULL DEFAULT 'LOCAL',
+    cfe_auto_envio boolean NOT NULL DEFAULT true,
     updated_at timestamp without time zone NOT NULL DEFAULT now()
   );
   `,
@@ -622,6 +624,7 @@ const statements = [
   JOIN (VALUES
     ('propietario','nueva-venta','usar',true),
     ('propietario','ventas','ver',true),
+    ('propietario','ventas','ver_todas',true),
     ('propietario','ventas','eliminar',true),
     ('propietario','ventas','exportar',true),
     ('propietario','productos','ver',true),
@@ -653,6 +656,7 @@ const statements = [
     ('propietario','configuracion','ver',true),
     ('vendedor','nueva-venta','usar',true),
     ('vendedor','ventas','ver',true),
+    ('vendedor','ventas','ver_todas',false),
     ('vendedor','ventas','eliminar',false),
     ('vendedor','ventas','exportar',false),
     ('vendedor','productos','ver',true),

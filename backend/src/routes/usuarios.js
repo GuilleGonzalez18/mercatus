@@ -481,7 +481,7 @@ usuariosRouter.get('/me', async (req, res) => {
 
     const result = await query(
       `SELECT u.id, u.username, u.nombre, u.apellido, u.correo, u.telefono, u.direccion,
-              u.rol_id, r.nombre AS rol_nombre
+              u.rol_id, u.debe_cambiar_password, r.nombre AS rol_nombre
        FROM public.usuarios u
        LEFT JOIN public.roles r ON r.id = u.rol_id
        WHERE u.id = $1
@@ -491,7 +491,7 @@ usuariosRouter.get('/me', async (req, res) => {
     if (!result.rowCount) return res.status(401).json({ error: 'Usuario no encontrado' });
     const row = result.rows[0];
     const rolNombre = row.rol_nombre || 'vendedor';
-    return res.json({ ...row, tipo: normalizeTipo(rolNombre), rol_nombre: rolNombre });
+    return res.json({ ...row, tipo: normalizeTipo(rolNombre), rol_nombre: rolNombre, debe_cambiar_password: Boolean(row.debe_cambiar_password) });
   } catch {
     return res.status(401).json({ error: 'Token inválido o vencido' });
   }
