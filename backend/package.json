@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "test": "node --test src/__tests__/validate.test.js src/__tests__/auth.test.js src/__tests__/cfeHelpers.test.js src/__tests__/pbt.test.js src/__tests__/cfeSender.test.js src/__tests__/cfeDescuentos.test.js",
+    "test": "node --test --experimental-test-module-mocks src/__tests__/validate.test.js src/__tests__/auth.test.js src/__tests__/cfeHelpers.test.js src/__tests__/pbt.test.js src/__tests__/cfeSender.test.js src/__tests__/cfeDescuentos.test.js src/__tests__/cfeBuilder.test.js",
     "test:integration": "RUN_INTEGRATION_TESTS=1 node --test src/__tests__/integration/ventas.integration.test.js src/__tests__/integration/stock.integration.test.js src/__tests__/integration/cfe.integration.test.js",
     "db:setup": "npm run db:schema && npm run db:migrate",
     "db:schema": "node src/scripts/bootstrapSchema.js",
