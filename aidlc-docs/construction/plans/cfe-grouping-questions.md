@@ -11,7 +11,7 @@ A) Preservar el `dscItem` original de la rawLine — ventas solo-packs conservan
 B) Siempre vacío — comportamiento uniforme independientemente del caso, implementación más simple
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]:
+[Answer]:A
 
 ## Question 2
 ¿Incluimos tests unitarios para la nueva lógica de agrupación?
@@ -22,4 +22,4 @@ A) Sí — agregar test unitario en `backend/src/__tests__/` para el nuevo compo
 B) No — solo modificar `cfeBuilder.js`, los tests quedan fuera de este alcance
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]:
+[Answer]:A
