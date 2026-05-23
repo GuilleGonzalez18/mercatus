@@ -51,7 +51,7 @@ function compressImage(dataUrl, maxW, maxH, quality) {
 
 // ── TAB EMPRESA ───────────────────────────────────────────────────────────────
 
-const DATOS_FIELDS  = ['nombre', 'razon_social', 'rut', 'direccion', 'telefono', 'correo', 'website', 'giro', 'ciudad', 'departamento', 'cfe_ambiente'];
+const DATOS_FIELDS  = ['nombre', 'razon_social', 'rut', 'direccion', 'telefono', 'correo', 'website', 'giro', 'ciudad', 'departamento', 'cfe_ambiente', 'cfe_auto_envio'];
 const LOGO_FIELDS   = ['logo_base64', 'logo_tamano', 'logo_bg_color'];
 const FONDO_FIELDS  = ['fondo_base64', 'fondo_opacidad'];
 const COLORES_FIELDS = [
@@ -75,6 +75,7 @@ function buildForm(emp) {
     ciudad:               emp.ciudad || '',
     departamento:         emp.departamento || '',
     cfe_ambiente:         emp.cfe_ambiente || 'LOCAL',
+    cfe_auto_envio:       emp.cfe_auto_envio !== false,
     logo_base64:          emp.logo_base64 || null,
     color_primary:        emp.color_primary || '#375f8c',
     color_primary_strong: emp.color_primary_strong || '#294c74',
@@ -737,6 +738,20 @@ const saveSection = async (sectionKey, fields) => {
             </AppSelect>
           </div>
         )}
+        {initialEmpresa?.cfe_habilitado && (
+          <div className="config-field-row config-field-row--checkbox">
+            <label className="config-field-label">Enviar CFE automáticamente</label>
+            <input
+              type="checkbox"
+              className="config-checkbox"
+              checked={form.cfe_auto_envio}
+              onChange={(e) => setForm((prev) => ({ ...prev, cfe_auto_envio: e.target.checked }))}
+            />
+            <span className="config-hint" style={{ gridColumn: '2', marginTop: 0 }}>
+              Si está activo, el CFE se emite automáticamente al confirmar cada venta.
+            </span>
+          </div>
+        )}
         <SectionActions
           dirty={isDirty(DATOS_FIELDS)}
           saving={savingSection === 'datos'}
@@ -1302,7 +1317,7 @@ function TabGanancias() {
 
 const RECURSOS = [
   { key: 'nueva-venta', label: 'Nueva venta',  acciones: ['usar'] },
-  { key: 'ventas',      label: 'Ventas',        acciones: ['ver', 'eliminar', 'exportar'] },
+  { key: 'ventas',      label: 'Ventas',        acciones: ['ver', 'ver_todas', 'eliminar', 'exportar'] },
   { key: 'productos',   label: 'Productos',     acciones: ['ver', 'agregar', 'editar', 'eliminar', 'ver_archivados', 'gestionar_empaques', 'ver_costo', 'ver_ganancia', 'exportar'] },
   { key: 'clientes',    label: 'Clientes',      acciones: ['ver', 'agregar', 'editar', 'eliminar', 'exportar'] },
   { key: 'usuarios',    label: 'Usuarios',      acciones: ['ver', 'agregar', 'editar', 'eliminar'] },
@@ -1317,7 +1332,7 @@ const ACCION_LABELS = {
   eliminar: 'Eliminar', exportar: 'Exportar', ver_costo: 'Ver costo',
   ver_ganancia: 'Ver ganancia', ver_archivados: 'Ver archivados',
   gestionar_empaques: 'Gestionar empaques',
-  ver_empresa: 'Ver empresa', ver_por_usuario: 'Ver por usuario',
+  ver_empresa: 'Ver empresa', ver_por_usuario: 'Ver por usuario', ver_todas: 'Ver todas',
 };
 
 function ResumenPermisos({ recurso, acciones, permisos }) {

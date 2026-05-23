@@ -278,6 +278,7 @@ export const api = {
     if (filtro?.fecha) q.set('fecha', String(filtro.fecha));
     if (filtro?.desde) q.set('desde', String(filtro.desde));
     if (filtro?.hasta) q.set('hasta', String(filtro.hasta));
+    if (filtro?.filtro_fecha) q.set('filtro_fecha', String(filtro.filtro_fecha));
     const suffix = q.toString();
     return request(`/ventas${suffix ? `?${suffix}` : ''}`);
   },
@@ -298,12 +299,26 @@ export const api = {
   getVentaById: (id) => request(`/ventas/${id}`),
   getVentaCFE: (id) => request(`/ventas/${id}/cfe`),
   getVentaCFEAnnotated: (id) => requestText(`/ventas/${id}/cfe?annotated=1`),
-  sendVentaCFE: (id) => request(`/ventas/${id}/cfe/enviar`, { method: 'POST' }),
+  sendVentaCFE: (id, force = false) => request(`/ventas/${id}/cfe/enviar`, {
+    method: 'POST',
+    body: JSON.stringify({ force }),
+  }),
   updateVentaEntregado: (id, entregado) =>
     request(`/ventas/${id}/entregado`, {
       method: 'PUT',
       body: JSON.stringify({ entregado }),
     }),
+  updateVentaCfeEnviado: (id, cfe_enviado) =>
+    request(`/ventas/${id}/cfe_enviado`, {
+      method: 'PATCH',
+      body: JSON.stringify({ cfe_enviado }),
+    }),
+  getVentasCfePendientes: (desde, hasta) => {
+    const q = new URLSearchParams({ solo_cfe_pendiente: 'true' });
+    if (desde) q.set('desde', desde);
+    if (hasta) q.set('hasta', hasta);
+    return request(`/ventas?${q.toString()}`);
+  },
   cancelarVenta: (id) =>
     request(`/ventas/${id}/cancelar`, {
       method: 'PUT',

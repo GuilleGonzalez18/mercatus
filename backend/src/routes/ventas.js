@@ -104,10 +104,11 @@ function normalizePaymentMethods(pagos = []) {
 
 async function getEmpresaCfeConfig() {
   try {
-    const res = await pool.query('SELECT cfe_ambiente FROM public.config_empresa LIMIT 1');
-    return buildCfeConfig(res.rows[0] || {});
+    const res = await pool.query('SELECT cfe_ambiente, cfe_auto_envio FROM public.config_empresa LIMIT 1');
+    const row = res.rows[0] || {};
+    return { config: buildCfeConfig(row), autoEnvio: row.cfe_auto_envio !== false };
   } catch {
-    return null;
+    return { config: null, autoEnvio: true };
   }
 }
 
@@ -1197,11 +1198,17 @@ ventasRouter.get('/', requirePermission('ventas', 'ver'), async (req, res) => {
     return res.status(400).json({ error: 'La fecha "desde" no puede ser mayor que "hasta"' });
   }
 
+  const filtroFechaRaw = String(req.query.filtro_fecha || 'venta');
+  const campoFecha = filtroFechaRaw === 'entrega' ? 'fecha_entrega' : 'fecha';
+
   const filterDate = fecha || null;
   const filterDesde = fecha ? null : (desde || null);
   const filterHasta = fecha ? null : (hasta || null);
 
-  const canSeeAllSales = isPropietario(authUser);
+  const soloCfePendiente = req.query.solo_cfe_pendiente === 'true';
+  const soloCfePendienteFilter = soloCfePendiente ? 'AND v.cfe_enviado = false' : '';
+
+  const canSeeAllSales = isPropietario(authUser) || await hasPermission(authUser, 'ventas', 'ver_todas');
   const params = [filterDate, filterDesde, filterHasta];
   const ownerFilter = canSeeAllSales ? '' : 'AND v.usuario_id = $4';
   if (!canSeeAllSales) params.push(Number(authUser.id));
@@ -1209,7 +1216,7 @@ ventasRouter.get('/', requirePermission('ventas', 'ver'), async (req, res) => {
   const result = await pool.query(
     `SELECT v.id, v.usuario_id, v.cliente_id, v.fecha, v.fecha_entrega, v.observacion,
             v.subtotal, v.descuento_total_tipo, v.descuento_total_valor, v.total, v.medio_pago, v.cancelada, v.entregado, v.estado_entrega,
-            COALESCE(v.eliminada, false) AS eliminada,
+            COALESCE(v.eliminada, false) AS eliminada, v.cfe_enviado,
             c.nombre AS cliente_nombre, c.telefono AS cliente_telefono, c.correo AS cliente_correo,
             c.direccion AS cliente_direccion,
             c.horario_apertura AS cliente_horario_apertura, c.horario_cierre AS cliente_horario_cierre,
@@ -1220,11 +1227,12 @@ ventasRouter.get('/', requirePermission('ventas', 'ver'), async (req, res) => {
       LEFT JOIN public.clientes c ON c.id = v.cliente_id
       LEFT JOIN public.usuarios u ON u.id = v.usuario_id
       WHERE (
-        ($1::date IS NOT NULL AND DATE(v.fecha) = $1::date)
+        ($1::date IS NOT NULL AND DATE(v.${campoFecha}) = $1::date)
         OR
-        ($1::date IS NULL AND DATE(v.fecha) BETWEEN COALESCE($2::date, DATE(v.fecha)) AND COALESCE($3::date, DATE(v.fecha)))
+        ($1::date IS NULL AND DATE(v.${campoFecha}) BETWEEN COALESCE($2::date, DATE(v.${campoFecha})) AND COALESCE($3::date, DATE(v.${campoFecha})))
       )
       AND COALESCE(v.eliminada, false) = false
+      ${soloCfePendienteFilter}
       ${ownerFilter}
       ORDER BY v.fecha DESC, v.id DESC`,
     params
@@ -1268,7 +1276,7 @@ ventasRouter.get('/:id', requirePermission('ventas', 'ver'), async (req, res) =>
   const ventaResult = await pool.query(
       `SELECT v.id, v.usuario_id, v.cliente_id, v.fecha, v.fecha_entrega, v.observacion,
               v.subtotal, v.descuento_total_tipo, v.descuento_total_valor, v.total, v.medio_pago, v.cancelada, v.entregado, v.estado_entrega,
-              COALESCE(v.eliminada, false) AS eliminada,
+              COALESCE(v.eliminada, false) AS eliminada, v.cfe_enviado,
               c.nombre AS cliente_nombre, c.telefono AS cliente_telefono, c.correo AS cliente_correo,
               c.direccion AS cliente_direccion,
               c.horario_apertura AS cliente_horario_apertura, c.horario_cierre AS cliente_horario_cierre,
@@ -1519,7 +1527,7 @@ ventasRouter.post('/', requirePermission('nueva-venta', 'usar'), async (req, res
       [ventaId]
     );
     await client.query('COMMIT');
-    const cfeConfig = await getEmpresaCfeConfig();
+    const { config: cfeConfig, autoEnvio: cfeAutoEnvio } = await getEmpresaCfeConfig();
     let cfe = {
       autoAttempted: false,
       autoSent: false,
@@ -1527,11 +1535,14 @@ ventasRouter.post('/', requirePermission('nueva-venta', 'usar'), async (req, res
       autoError: null,
       result: null,
     };
-    if (cfeConfig) {
+    if (cfeConfig && cfeAutoEnvio) {
       cfe.autoAttempted = true;
       try {
         cfe.result = await sendCFE(ventaId, cfeConfig);
         cfe.autoSent = true;
+        if (cfe.result?.CFE?.CFEMsgCod === '100') {
+          await pool.query('UPDATE public.ventas SET cfe_enviado = TRUE WHERE id = $1', [ventaId]);
+        }
         await pool.query(
           `INSERT INTO public.auditoria_eventos (entidad, entidad_id, accion, detalle, usuario_id, usuario_nombre)
            VALUES ($1,$2,$3,$4,$5,$6)`,
@@ -1551,6 +1562,7 @@ ventasRouter.post('/', requirePermission('nueva-venta', 'usar'), async (req, res
     }
     return res.status(201).json({
       ...ventaResult.rows[0],
+      cfe_enviado: cfe.result?.CFE?.CFEMsgCod === '100' ? true : (ventaResult.rows[0]?.cfe_enviado ?? false),
       pagos: pagosResult.rows.map((p) => ({
         id: p.id,
         venta_id: Number(p.venta_id),
@@ -1611,6 +1623,53 @@ ventasRouter.put('/:id/entregado', requirePermission('ventas', 'ver'), async (re
       ventaId,
       'actualizar_entrega',
       `Entrega marcada como ${result.rows[0].entregado ? 'entregada' : 'no entregada'}`,
+      authUser?.id || null,
+      actorName(authUser),
+    ]
+  );
+
+  return res.json(result.rows[0]);
+});
+
+ventasRouter.patch('/:id/cfe_enviado', requirePermission('ventas', 'editar'), async (req, res) => {
+  const ventaId = Number(req.params.id);
+  const { cfe_enviado } = req.body || {};
+  const authUser = req.authUser ?? getAuthUserFromRequest(req);
+
+  if (!Number.isInteger(ventaId) || ventaId <= 0) {
+    return res.status(400).json({ error: 'Id de venta inválido' });
+  }
+  if (typeof cfe_enviado !== 'boolean') {
+    return res.status(400).json({ error: 'El campo cfe_enviado debe ser booleano' });
+  }
+
+  if (!(await canAccessVenta(authUser, ventaId))) {
+    return res.status(404).json({ error: 'Venta no encontrada' });
+  }
+
+  const result = await pool.query(
+    `UPDATE public.ventas
+     SET cfe_enviado = $1
+     WHERE id = $2 AND COALESCE(eliminada, false) = false
+     RETURNING id, cfe_enviado`,
+    [cfe_enviado, ventaId]
+  );
+
+  if (!result.rowCount) {
+    const exists = await pool.query(`SELECT id, COALESCE(eliminada, false) AS eliminada FROM public.ventas WHERE id = $1`, [ventaId]);
+    if (!exists.rowCount) return res.status(404).json({ error: 'Venta no encontrada' });
+    if (exists.rows[0].eliminada) return res.status(400).json({ error: 'No se puede actualizar una venta eliminada' });
+    return res.status(400).json({ error: 'No se pudo actualizar' });
+  }
+
+  await pool.query(
+    `INSERT INTO public.auditoria_eventos (entidad, entidad_id, accion, detalle, usuario_id, usuario_nombre)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [
+      'venta',
+      ventaId,
+      'actualizar_cfe_enviado',
+      `CFE marcado como ${cfe_enviado ? 'enviado' : 'no enviado'} manualmente`,
       authUser?.id || null,
       actorName(authUser),
     ]
@@ -1896,13 +1955,26 @@ ventasRouter.post('/:id/cfe/enviar', async (req, res) => {
     return res.status(404).json({ error: 'Venta no encontrada' });
   }
 
-  const cfeConfig = await getEmpresaCfeConfig();
+  const { config: cfeConfig } = await getEmpresaCfeConfig();
   if (!cfeConfig) {
     return res.status(400).json({ error: 'El envío de CFE no está habilitado o no está configurado para este ambiente.' });
   }
 
+  const force = req.body?.force === true;
+  const ventaRow = await pool.query('SELECT cfe_enviado FROM public.ventas WHERE id = $1', [ventaId]);
+  if (ventaRow.rows[0]?.cfe_enviado && !force) {
+    return res.status(409).json({
+      error: 'CFE_YA_ENVIADO',
+      message: 'El CFE de esta venta ya fue enviado y confirmado. Para forzar el reenvío incluya force: true.',
+    });
+  }
+
   try {
     const result = await sendCFE(ventaId, cfeConfig);
+    const cfeEnviado = result?.CFE?.CFEMsgCod === '100';
+    if (cfeEnviado) {
+      await pool.query('UPDATE public.ventas SET cfe_enviado = TRUE WHERE id = $1', [ventaId]);
+    }
     await pool.query(
       `INSERT INTO public.auditoria_eventos (entidad, entidad_id, accion, detalle, usuario_id, usuario_nombre)
        VALUES ($1,$2,$3,$4,$5,$6)`,
@@ -1910,12 +1982,12 @@ ventasRouter.post('/:id/cfe/enviar', async (req, res) => {
         'venta',
         ventaId,
         'emitir_cfe',
-        'CFE emitido manualmente',
+        force ? 'CFE emitido manualmente (reenvío forzado)' : 'CFE emitido manualmente',
         authUser?.id || null,
         actorName(authUser),
       ]
     );
-    return res.json({ ok: true, result });
+    return res.json({ ok: true, result, cfeEnviado });
   } catch (error) {
     logServerError('ventas.sendCfe', error);
     return res.status(502).json({ error: error?.message || 'No se pudo emitir el CFE' });

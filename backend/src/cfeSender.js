@@ -66,6 +66,9 @@ export async function sendCFE(ventaId, config = null) {
     throw new Error(`Error construyendo CFE para venta ${ventaId}: ${err.message}`);
   }
 
+  console.log(`[CFE] Enviando venta #${ventaId} → ${apiUrl}`);
+  console.log(`[CFE] Payload:`, JSON.stringify(payload, null, 2));
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -74,7 +77,7 @@ export async function sendCFE(ventaId, config = null) {
     response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        'Authorization': apiToken,
+        'Authorization': `Bearer ${apiToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
@@ -89,10 +92,50 @@ export async function sendCFE(ventaId, config = null) {
     clearTimeout(timer);
   }
 
+  console.log(`[CFE] Respuesta HTTP ${response.status} para venta #${ventaId}`);
+
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
+    console.error(`[CFE] Error de la API:`, errorText);
     throw new Error(`Error al enviar CFE (HTTP ${response.status}): ${errorText}`);
   }
 
-  return response.json();
+  const result = await response.json();
+  console.log(`[CFE] Resultado:`, JSON.stringify(result, null, 2));
+
+  // Respuesta vacía (array vacío) = el payload no llegó al ambiente
+  if (Array.isArray(result) && result.length === 0) {
+    throw new Error('CFE no llegó al ambiente: la API devolvió una respuesta vacía. Verificar URL y token del ambiente configurado.');
+  }
+
+  // Validar resultado lógico del CFE.
+  // Dynamica usa CFEStatus=3 para rechazos. Erros.ErrosItem puede contener
+  // tanto mensajes informativos de éxito (ej. código 100) como errores reales,
+  // por lo que NO se usa como indicador de rechazo — solo CFEStatus=3.
+  const cfeData = result?.CFE;
+  if (cfeData && cfeData.CFEStatus === '3') {
+    const msgBase = cfeData.CFEMsgDsc || `CFE rechazado (estado ${cfeData.CFEStatus})`;
+    const errItems = cfeData.Erros?.ErrosItem;
+    const errores = Array.isArray(errItems) ? errItems : (errItems ? [errItems] : []);
+    // Deduplicar errores por código+descripción
+    const vistos = new Set();
+    const lineas = errores
+      .filter((e) => {
+        const key = `${e.CFEErrCod}:${e.CFEErrDesc}`;
+        if (vistos.has(key)) return false;
+        vistos.add(key);
+        return true;
+      })
+      .map((e) => `[${e.CFEErrCod}] ${e.CFEErrDesc}`);
+
+    const mensaje = lineas.length
+      ? `${msgBase}\n\n${lineas.join('\n')}`
+      : msgBase;
+
+    const err = new Error(mensaje);
+    err.cfeResult = result;
+    throw err;
+  }
+
+  return result;
 }

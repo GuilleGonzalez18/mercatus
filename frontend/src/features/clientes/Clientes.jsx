@@ -327,7 +327,7 @@ export default function Clientes() {
     const q = busqueda.trim().toLowerCase();
     if (!q) return clientes;
     return clientes.filter((c) =>
-      `${c.nombre || ''} ${c.rut || ''}`.toLowerCase().includes(q)
+      `${c.nombre || ''} ${c.rut || ''} ${c.numero_documento || ''}`.toLowerCase().includes(q)
     );
   }, [clientes, busqueda]);
 
@@ -398,7 +398,7 @@ export default function Clientes() {
     try {
       const payload = {
         nombre: nuevo.nombre,
-        rut: nuevo.rut,
+        rut: nuevo.numero_documento || null,
         direccion: nuevo.direccion || null,
         telefono: nuevo.telefono || null,
         correo: nuevo.correo || null,
@@ -475,7 +475,8 @@ export default function Clientes() {
     setClienteExpandidoId(null);
     setNuevo({
       nombre: cliente.nombre || '',
-      rut: cliente.rut || '',
+      numero_documento: cliente.numero_documento || cliente.rut || '',
+      tipo_documento: cliente.tipo_documento || '',
       direccion: cliente.direccion || '',
       telefono: cliente.telefono || '',
       correo: cliente.correo || '',
@@ -484,8 +485,6 @@ export default function Clientes() {
       tiene_reapertura: Boolean(cliente.tiene_reapertura),
       horario_reapertura: cliente.horario_reapertura || '',
       horario_cierre_reapertura: cliente.horario_cierre_reapertura || '',
-      tipo_documento: cliente.tipo_documento || '',
-      numero_documento: cliente.numero_documento || '',
       departamento_id: cliente.departamento_id ? String(cliente.departamento_id) : '',
       barrio_id: cliente.barrio_id ? String(cliente.barrio_id) : '',
       codigo_postal: cliente.codigo_postal || '',
@@ -551,10 +550,10 @@ export default function Clientes() {
 
     autoTable(doc, {
       startY,
-      head: [['Nombre', 'Rut/C.I.', 'Dirección', 'Teléfono', 'Mail', 'Horarios']],
+      head: [['Nombre', 'Documento', 'Dirección', 'Teléfono', 'Mail', 'Horarios']],
       body: filtrados.map((c) => [
         c.nombre || '',
-        c.rut || '',
+        c.numero_documento || c.rut || '',
         c.direccion || '',
         c.telefono || '',
         c.correo || '',
@@ -582,7 +581,7 @@ export default function Clientes() {
       return `
         <tr style="background:${zebra}">
           <td>${c.nombre || ''}</td>
-          <td>${c.rut || ''}</td>
+          <td>${c.numero_documento || c.rut || ''}</td>
           <td>${c.direccion || ''}</td>
           <td>${c.telefono || ''}</td>
           <td>${c.correo || ''}</td>
@@ -596,7 +595,7 @@ export default function Clientes() {
         <table border="1" style="border-collapse:collapse;width:100%">
           <thead>
             <tr style="background:#375f8c;color:#fff">
-              <th>Nombre</th><th>Rut/C.I.</th><th>Dirección</th><th>Teléfono</th><th>Mail</th><th>Horarios</th>
+              <th>Nombre</th><th>Documento</th><th>Dirección</th><th>Teléfono</th><th>Mail</th><th>Horarios</th>
             </tr>
           </thead>
           <tbody>${rowsHtml}</tbody>
@@ -618,7 +617,7 @@ export default function Clientes() {
     const rows = filtrados.map((c) => `
       <tr>
         <td>${c.nombre || ''}</td>
-        <td>${c.rut || ''}</td>
+        <td>${c.numero_documento || c.rut || ''}</td>
         <td>${c.direccion || ''}</td>
         <td>${c.telefono || ''}</td>
         <td>${c.correo || ''}</td>
@@ -640,7 +639,7 @@ export default function Clientes() {
         <h2>Lista de clientes</h2>
         <table>
           <thead><tr>
-            <th>Nombre</th><th>Rut/C.I.</th><th>Dirección</th><th>Teléfono</th><th>Mail</th><th>Horarios</th>
+            <th>Nombre</th><th>Documento</th><th>Dirección</th><th>Teléfono</th><th>Mail</th><th>Horarios</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -717,11 +716,11 @@ export default function Clientes() {
       key: 'rut',
       header: (
         <button type="button" className="sort-header-btn" onClick={() => toggleSort('rut')}>
-          Rut/C.I. {sortMark('rut')}
+          Documento {sortMark('rut')}
         </button>
       ),
-      mobileLabel: 'Rut/C.I.',
-      render: (c) => c.rut || '-',
+      mobileLabel: 'Documento',
+      render: (c) => c.numero_documento || c.rut || '-',
     },
     {
       key: 'direccion',
@@ -774,7 +773,7 @@ export default function Clientes() {
         <AppInput
           type="text"
           className="buscar-cliente table-search-field"
-          placeholder="Buscar por nombre o RUT/C.I."
+          placeholder="Buscar por nombre o documento"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
         />
@@ -883,9 +882,6 @@ export default function Clientes() {
           <form className="cliente-form" onSubmit={guardarCliente}>
             <label className="field-label">Nombre
               <AppInput name="nombre" value={nuevo.nombre} onChange={handleChange} placeholder="Nombre" required />
-            </label>
-            <label className="field-label">RUT / C.I.
-              <AppInput name="rut" value={nuevo.rut} onChange={handleChange} placeholder="Rut/C.I." required />
             </label>
             <label className="field-label">Tipo de documento
               <AppSelect name="tipo_documento" value={nuevo.tipo_documento || ''} onChange={handleChange}>

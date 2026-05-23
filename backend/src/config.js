@@ -29,6 +29,7 @@ if (companyName) {
     }
     // eslint-disable-next-line no-console
     console.log(`[config] ${loaded} propiedades cargadas desde prop-${companyName}.properties`);
+    console.log('[debug] CLOUDINARY_URL:', process.env.CLOUDINARY_URL ? 'definida' : 'undefined');
   } catch (e) {
     if (e.code === 'ENOENT') {
       // eslint-disable-next-line no-console

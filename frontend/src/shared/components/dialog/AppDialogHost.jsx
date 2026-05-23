@@ -85,7 +85,7 @@ export default function AppDialogHost() {
       <div className="app-dialog-backdrop" onClick={() => close(false)} />
       <div className="app-dialog-card" ref={cardRef} tabIndex={-1}>
         <h4 id={titleId}>{dialog.title}</h4>
-        <p id={descriptionId}>{dialog.message}</p>
+        <p id={descriptionId} style={{ whiteSpace: 'pre-wrap' }}>{dialog.message}</p>
         <div className="app-dialog-actions">
           {dialog.type === 'confirm' && (
             <AppButton type="button" className="secundario" onClick={() => close(false)}>

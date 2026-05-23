@@ -101,7 +101,7 @@ export async function buildCFE(ventaId) {
 
     // Para la línea de empaques expresamos en unidades totales con descripción del empaque
     const unidadesPacks = packs * packSize;
-    const montoPacksBruto = hasPacks ? round2(unidadesPacks * precioUnidad) : 0;
+    const montoPacksBruto = hasPacks ? round2(packs * precioEmpaque) : 0;
     const montoSueltasBruto = hasSueltas ? round2(sueltas * precioUnidad) : 0;
 
     // Usar descuentos almacenados directamente (independientes por packs/sueltas)
@@ -134,46 +134,73 @@ export async function buildCFE(ventaId) {
   const descTotalValorRaw = Number(venta.descuento_total_valor || 0);
   const descGlobalAmount = calcDescuentoGlobal(descTotalTipo, descTotalValorRaw, baseNetaItems);
 
-  // --- Segunda pasada: construir detalle CFE con descuento total por línea ---
+  // --- Segunda pasada: agrupar por producto y construir detalle CFE ---
   const netasLinea = rawLines.map((l) => round2(l.monto - l.descItem));
   const globalPorLinea = distributeGlobalDiscount(netasLinea, descGlobalAmount);
-  const detalle = [];
 
+  // Sub-paso A: acumular en Map agrupado por clave codValue|indFact
+  const grouped = new Map();
   for (let i = 0; i < rawLines.length; i++) {
     const l = rawLines[i];
-    const descGlobalLinea = globalPorLinea[i];
+    const key = `${l.codValue}|${l.indFact}`;
+    const descTotal = round2(l.descItem + globalPorLinea[i]);
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        indFact: l.indFact,
+        porcentaje: l.porcentaje,
+        codeTipo: l.codeTipo,
+        codValue: l.codValue,
+        nombreItem: l.nombreItem,
+        uniMed: l.uniMed,
+        firstDscItem: l.dscItem || '',
+        totalMonto: l.monto,
+        totalDescTotal: descTotal,
+        totalCantidad: l.cantidad,
+        rawLineCount: 1,
+      });
+    } else {
+      const g = grouped.get(key);
+      g.totalMonto = round2(g.totalMonto + l.monto);
+      g.totalDescTotal = round2(g.totalDescTotal + descTotal);
+      g.totalCantidad += l.cantidad;
+      g.rawLineCount += 1;
+    }
+  }
 
-    const descTotal = round2(l.descItem + descGlobalLinea);
-    const montoNeto = round2(l.monto - descTotal);
+  // Sub-paso B: construir detalle[] e IVA desde el Map agrupado
+  const detalle = [];
+  for (const g of grouped.values()) {
+    const montoNeto = round2(g.totalMonto - g.totalDescTotal);
+    const precioUnitario = g.totalCantidad > 0 ? round4(g.totalMonto / g.totalCantidad) : 0;
 
-    if (l.indFact === 2 && l.porcentaje > 0) {
-      const neto = round2(montoNeto / (1 + l.porcentaje));
+    if (g.indFact === 2 && g.porcentaje > 0) {
+      const neto = round2(montoNeto / (1 + g.porcentaje));
       totNetoMin += neto;
       totIvaMin += round2(montoNeto - neto);
-    } else if (l.indFact === 3 && l.porcentaje > 0) {
-      const neto = round2(montoNeto / (1 + l.porcentaje));
+    } else if (g.indFact === 3 && g.porcentaje > 0) {
+      const neto = round2(montoNeto / (1 + g.porcentaje));
       totNetoBasica += neto;
       totIvaBasica += round2(montoNeto - neto);
     } else {
       totNoGrav += montoNeto;
     }
 
-    const descPct = l.monto > 0 ? round2((descTotal / l.monto) * 100) : 0;
+    const descPct = g.totalMonto > 0 ? round2((g.totalDescTotal / g.totalMonto) * 100) : 0;
     const itemLine = {
-      IteCodiTpoCod: l.codeTipo,
-      IteCodiCod: l.codValue,
-      IteIndFact: String(l.indFact),
-      IteNomItem: l.nombreItem,
-      IteDscItem: l.dscItem || '',
-      IteCantidad: l.cantidad.toFixed(3),
-      IteUniMed: l.uniMed,
-      ItePrecioUnitario: l.precio.toFixed(4),
-      IteMontoItem: round2(l.monto - descTotal).toFixed(2),
+      IteCodiTpoCod: g.codeTipo,
+      IteCodiCod: g.codValue,
+      IteIndFact: String(g.indFact),
+      IteNomItem: g.nombreItem,
+      IteDscItem: g.rawLineCount === 1 ? g.firstDscItem : '',
+      IteCantidad: g.totalCantidad.toFixed(3),
+      IteUniMed: g.uniMed,
+      ItePrecioUnitario: precioUnitario.toFixed(4),
+      IteMontoItem: montoNeto.toFixed(2),
     };
     // IteDescuentoPct y IteDescuentoMonto son opcionales — solo incluir si hay descuento real
-    if (descTotal > 0) {
+    if (g.totalDescTotal > 0) {
       itemLine.IteDescuentoPct = descPct.toFixed(2);
-      itemLine.IteDescuentoMonto = descTotal.toFixed(2);
+      itemLine.IteDescuentoMonto = g.totalDescTotal.toFixed(2);
     }
     detalle.push(itemLine);
   }
@@ -238,10 +265,18 @@ export async function buildCFE(ventaId) {
       CFEImpFormato: '2',
       CFEIdCompra: '',
       CFEIdCompraApodo: '',
+      CFEExpClaVenta: '',
+      CFEExpModVenta: '',
+      CFEExpViaTransporte: '',
       CFETpoOperacion: '1',
       CFEQrCode: '3',
       CFERepImpresa: '2',
       CFEInfAdicional: '',
+      CFECobranzaPropia: '',
+      CFESecretoProfesional: '',
+      CFEPagoCuentaTerceros: '',
+      CFEIndCompraME: '',
+      CFENombreLogo: '',
     },
     Emisor: {
       EmiRznSoc: String(empresa.razon_social || empresa.nombre || '').slice(0, 150),
@@ -256,7 +291,21 @@ export async function buildCFE(ventaId) {
       EmiDepartamento: String(empresa.departamento || '').slice(0, 30),
       EmiInfAdicional: '',
     },
-    Receptor: receptor,
+    Receptor: receptor ?? {
+      RcpTipoDocRecep: '',
+      RcpTipoDocDscRecep: '',
+      RcpCodPaisRecep: '',
+      RcpDocRecep: '',
+      RcpRznSocRecep: 'CONSUMIDOR FINAL',
+      RcpDirRecep: '',
+      RcpCiudadRecep: '',
+      RcpDeptoRecep: '',
+      RcpCP: '',
+      RcpCorreoRecep: '',
+      RcpInfAdiRecep: '',
+      RcpDirPaisRecep: '',
+      RcpDstEntregaRecep: '',
+    },
     Totales: {
       TotTpoMoneda: 'UYU',
       TotTpoCambio: '',
@@ -275,6 +324,14 @@ export async function buildCFE(ventaId) {
       TotMntPagar: totTotal.toFixed(2),
       MedPagCodMP: getCodMP(medioPago),
       MedPagGlosaMP: getGlosaMP(medioPago),
+    },
+    Mandante: {
+      MndTipDoc: '',
+      MndTipDocDsc: '',
+      MndCodPais: '',
+      MndNroDocumento: '',
+      MndRazSocial: '',
+      MndEncriptar: '',
     },
     Detalle: detalle,
     Referencia: [],
