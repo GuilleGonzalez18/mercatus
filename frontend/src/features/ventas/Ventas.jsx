@@ -277,13 +277,16 @@ const DiscountModal = memo(function DiscountModal({
   description,
   initialTipo,
   initialValor,
+  initialBase,
+  showBase = false,
   onClose,
   onApply,
   idPrefix = ventasButtonId('descuento-modal'),
 }) {
   const inputRef = useRef(null);
-  const [draftTipo, setDraftTipo] = useState(initialTipo === 'fijo' ? 'fijo' : 'porcentaje');
+  const [draftTipo, setDraftTipo] = useState(initialTipo === 'porcentaje' ? 'porcentaje' : 'fijo');
   const [draftValor, setDraftValor] = useState(initialValor || '');
+  const [draftBase, setDraftBase] = useState(initialBase === 'total' ? 'total' : 'unidad');
 
   useEffect(() => {
     if (!open) return undefined;
@@ -295,8 +298,8 @@ const DiscountModal = memo(function DiscountModal({
   }, [open]);
 
   const handleApply = useCallback(() => {
-    onApply({ tipo: draftTipo, valor: draftValor });
-  }, [draftTipo, draftValor, onApply]);
+    onApply({ tipo: draftTipo, valor: draftValor, base: draftBase });
+  }, [draftTipo, draftValor, draftBase, onApply]);
 
   const handleKeyDown = useCallback((event) => {
     if (event.key === 'Enter') {
@@ -348,6 +351,28 @@ const DiscountModal = memo(function DiscountModal({
           onKeyDown={handleKeyDown}
           placeholder={draftTipo === 'porcentaje' ? 'Ej: 10' : 'Ej: 500'}
         />
+        {showBase && (
+          <div className="descuento-modal-base-checks">
+            <label className="descuento-modal-base-check-row">
+              <AppInput
+                id={`${idPrefix}-base-unidad`}
+                type="checkbox"
+                checked={draftBase === 'unidad'}
+                onChange={() => setDraftBase('unidad')}
+              />
+              <span>Aplicar x Unidad</span>
+            </label>
+            <label className="descuento-modal-base-check-row">
+              <AppInput
+                id={`${idPrefix}-base-total`}
+                type="checkbox"
+                checked={draftBase === 'total'}
+                onChange={() => setDraftBase('total')}
+              />
+              <span>Aplicar al Total</span>
+            </label>
+          </div>
+        )}
         <div className="descuento-modal-actions">
           <AppButton id={`${idPrefix}-cancelar`} type="button" className="secundario" onClick={onClose}>
             Cancelar
@@ -389,8 +414,9 @@ export default function Ventas({
     open: false,
     itemId: null,
     parte: 'sueltas',
-    tipo: 'porcentaje',
+    tipo: 'fijo',
     valor: '',
+    base: 'unidad',
   });
   const [descuentoTotalTipo, setDescuentoTotalTipo] = useState('ninguno');
   const [descuentoTotalValor, setDescuentoTotalValor] = useState('');
@@ -891,28 +917,31 @@ export default function Ventas({
       itemId: item.id,
       parte,
       tipo: esPacks
-        ? (item.descuentoPacksTipo === 'fijo' ? 'fijo' : 'porcentaje')
-        : (item.descuentoTipo === 'fijo' ? 'fijo' : 'porcentaje'),
+        ? (item.descuentoPacksTipo === 'porcentaje' ? 'porcentaje' : 'fijo')
+        : (item.descuentoTipo === 'porcentaje' ? 'porcentaje' : 'fijo'),
       valor: esPacks ? (item.descuentoPacksValor || '') : (item.descuentoValor || ''),
+      base: esPacks ? (item.descuentoPacksBase || 'unidad') : (item.descuentoBase || 'unidad'),
     });
   };
 
   const closeDiscountModal = () => {
-    setDescuentoItemModal({ open: false, itemId: null, parte: 'sueltas', tipo: 'porcentaje', valor: '' });
+    setDescuentoItemModal({ open: false, itemId: null, parte: 'sueltas', tipo: 'fijo', valor: '', base: 'unidad' });
   };
 
-  const applyItemDiscount = ({ tipo, valor } = descuentoItemModal) => {
+  const applyItemDiscount = ({ tipo, valor, base } = descuentoItemModal) => {
     if (!descuentoItemModal.itemId) return;
     const valorNormalizado = normalizeDiscountValue(valor);
     if (descuentoItemModal.parte === 'packs') {
       updateItem(descuentoItemModal.itemId, {
         descuentoPacksTipo: tipo,
         descuentoPacksValor: valorNormalizado,
+        descuentoPacksBase: base || 'total',
       });
     } else {
       updateItem(descuentoItemModal.itemId, {
         descuentoTipo: tipo,
         descuentoValor: valorNormalizado,
+        descuentoBase: base || 'total',
       });
     }
     closeDiscountModal();
@@ -920,9 +949,9 @@ export default function Ventas({
 
   const removeItemDiscount = (itemId, parte = 'sueltas') => {
     if (parte === 'packs') {
-      updateItem(itemId, { descuentoPacksTipo: 'ninguno', descuentoPacksValor: '' });
+      updateItem(itemId, { descuentoPacksTipo: 'ninguno', descuentoPacksValor: '', descuentoPacksBase: 'total' });
     } else {
-      updateItem(itemId, { descuentoTipo: 'ninguno', descuentoValor: '' });
+      updateItem(itemId, { descuentoTipo: 'ninguno', descuentoValor: '', descuentoBase: 'total' });
     }
   };
 
@@ -972,7 +1001,11 @@ export default function Ventas({
       if (item.descuentoTipo === 'porcentaje') {
         descSueltas = (baseSueltas * Math.max(0, Math.min(100, valorSueltas))) / 100;
       } else if (item.descuentoTipo === 'fijo') {
-        descSueltas = Math.max(0, Math.min(baseSueltas, roundMoney(valorSueltas)));
+        if (item.descuentoBase === 'unidad') {
+          descSueltas = Math.max(0, Math.min(baseSueltas, roundMoney(valorSueltas * split.unidadesSueltas)));
+        } else {
+          descSueltas = Math.max(0, Math.min(baseSueltas, roundMoney(valorSueltas)));
+        }
       }
 
       // Descuento sobre packs (solo si hay packs)
@@ -982,7 +1015,12 @@ export default function Ventas({
         if (item.descuentoPacksTipo === 'porcentaje') {
           descPacks = (montoPacks * Math.max(0, Math.min(100, valorPacks))) / 100;
         } else if (item.descuentoPacksTipo === 'fijo') {
-          descPacks = Math.max(0, Math.min(montoPacks, roundMoney(valorPacks)));
+          if (item.descuentoPacksBase === 'unidad') {
+            const totalUnidadesEnPacks = split.packs * packSize;
+            descPacks = Math.max(0, Math.min(montoPacks, roundMoney(valorPacks * totalUnidadesEnPacks)));
+          } else {
+            descPacks = Math.max(0, Math.min(montoPacks, roundMoney(valorPacks)));
+          }
         }
       }
 
@@ -1416,9 +1454,11 @@ export default function Ventas({
           descuento_tipo: item.descuentoTipo || 'ninguno',
           descuento_valor: toNumber(item.descuentoValor),
           descuento_aplicado: toNumber(item.descuentoSueltasAplicado ?? item.descuentoAplicado),
+          descuento_base: item.descuentoBase || 'total',
           descuento_packs_tipo: item.descuentoPacksTipo || 'ninguno',
           descuento_packs_valor: toNumber(item.descuentoPacksValor),
           descuento_packs_aplicado: toNumber(item.descuentoPacksAplicado),
+          descuento_packs_base: item.descuentoPacksBase || 'total',
         })),
       });
 
@@ -2096,12 +2136,15 @@ export default function Ventas({
           descuentoItemModal.parte,
           descuentoItemModal.tipo,
           descuentoItemModal.valor,
+          descuentoItemModal.base,
         ].join(':')}
         open={descuentoItemModal.open}
         title={descuentoItemModal.parte === 'packs' ? 'Descuento en empaques' : 'Descuento en unidades sueltas'}
         description="Selecciona el tipo de descuento para este producto."
         initialTipo={descuentoItemModal.tipo}
         initialValor={descuentoItemModal.valor}
+        initialBase={descuentoItemModal.base}
+        showBase
         onClose={closeDiscountModal}
         onApply={applyItemDiscount}
         idPrefix={ventasButtonId('descuento-item-modal', descuentoItemModal.parte)}

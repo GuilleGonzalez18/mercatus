@@ -947,6 +947,9 @@ const statements = [
   `ALTER TABLE public.ventas ADD COLUMN IF NOT EXISTS cfe_enviado boolean NOT NULL DEFAULT false;`,
   // === CFE_AUTO_ENVIO en config_empresa (v21) ===
   `ALTER TABLE public.config_empresa ADD COLUMN IF NOT EXISTS cfe_auto_envio boolean NOT NULL DEFAULT true;`,
+  // === DESCUENTO BASE POR UNIDAD (v22) ===
+  `ALTER TABLE public.venta_detalle ADD COLUMN IF NOT EXISTS descuento_base varchar(10) NOT NULL DEFAULT 'total';`,
+  `ALTER TABLE public.venta_detalle ADD COLUMN IF NOT EXISTS descuento_packs_base varchar(10) NOT NULL DEFAULT 'total';`,
 ];
 
 export async function runMigration() {

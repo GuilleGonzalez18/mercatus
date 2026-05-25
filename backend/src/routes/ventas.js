@@ -1393,7 +1393,9 @@ ventasRouter.get('/:id', requirePermission('ventas', 'ver'), async (req, res) =>
             vd.packs, vd.unidades_sueltas, vd.unidades_por_empaque, vd.tipo_empaque,
             vd.precio_empaque, vd.precio_unidad, vd.modo_venta,
             vd.descuento_tipo, vd.descuento_valor, vd.descuento_aplicado,
+            vd.descuento_base,
             vd.descuento_packs_tipo, vd.descuento_packs_valor, vd.descuento_packs_aplicado,
+            vd.descuento_packs_base,
             p.nombre AS producto_nombre
      FROM public.venta_detalle vd
      LEFT JOIN public.productos p ON p.id = vd.producto_id
@@ -1536,9 +1538,9 @@ ventasRouter.post('/', requirePermission('nueva-venta', 'usar'), async (req, res
           (venta_id, producto_id, cantidad, precio_unitario,
            packs, unidades_sueltas, unidades_por_empaque, tipo_empaque,
            precio_empaque, precio_unidad, modo_venta,
-           descuento_tipo, descuento_valor, descuento_aplicado,
-           descuento_packs_tipo, descuento_packs_valor, descuento_packs_aplicado)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+           descuento_tipo, descuento_valor, descuento_aplicado, descuento_base,
+           descuento_packs_tipo, descuento_packs_valor, descuento_packs_aplicado, descuento_packs_base)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
         [
           ventaId,
           Number(item.producto_id),
@@ -1554,9 +1556,11 @@ ventasRouter.post('/', requirePermission('nueva-venta', 'usar'), async (req, res
           item.descuento_tipo || 'ninguno',
           toNumber(item.descuento_valor),
           toNumber(item.descuento_aplicado),
+          item.descuento_base || 'total',
           item.descuento_packs_tipo || 'ninguno',
           toNumber(item.descuento_packs_valor),
           toNumber(item.descuento_packs_aplicado),
+          item.descuento_packs_base || 'total',
         ]
       );
     }
