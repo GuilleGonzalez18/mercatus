@@ -1,0 +1,154 @@
+MERCATUS — SISTEMA DE GESTIÓN PARA EMPRESAS DE IMPORTACIÓN Y DISTRIBUCIÓN
+==========================================================================
+
+Mercatus es un sistema de gestión comercial completo, diseñado para empresas
+importadoras y distribuidoras que necesitan control real sobre sus ventas,
+stock y facturación, todo desde un único lugar.
+
+---
+
+PUNTO DE VENTA ÁGIL Y FLEXIBLE
+--------------------------------
+- Registro de ventas con búsqueda instantánea de productos por nombre o código.
+- Soporte de empaques: se puede vender por unidades, por cajas/fundas o una
+  combinación mixta (ej: 2 cajas + 5 unidades sueltas).
+- Descuentos por ítem, tanto en porcentaje como en monto fijo.
+- Múltiples medios de pago en la misma venta (efectivo, débito, crédito,
+  transferencia). El sistema calcula el vuelto automáticamente.
+- Asociación de cliente a la venta para historial por cliente y para emitir
+  factura electrónica en lugar de ticket.
+- Descuento automático del stock al confirmar cada venta, sin pasos extras.
+
+---
+
+FACTURACIÓN ELECTRÓNICA (CFE) — INTEGRACIÓN CON DGI URUGUAY
+--------------------------------------------------------------
+- Integración nativa con la API del Módulo de Dynamica para emitir
+  Comprobantes Fiscales Electrónicos (CFE) ante la DGI de Uruguay.
+- Emite automáticamente el tipo correcto según el cliente:
+    · eTicket (código 101) para consumidor final (sin RUT)
+    · eFactura (código 111) para empresas y personas jurídicas (con RUT)
+- Tres ambientes de trabajo:
+    · Local: genera el JSON del CFE para revisión sin enviar a la DGI
+    · Pruebas: envía al servidor de testing de Dynamica para homologación
+    · Producción: operaciones reales registradas ante el fisco
+- El JSON del CFE queda almacenado en cada venta y se puede consultar
+  o reimprimir en cualquier momento desde el historial.
+- Proceso guiado para activar el ambiente de Producción, con aviso
+  explícito antes de operar en modo fiscal real.
+
+---
+
+CONTROL DE STOCK EN TIEMPO REAL
+---------------------------------
+- El stock se actualiza automáticamente con cada venta registrada.
+- Módulo de movimientos manuales: entradas (reposición, devoluciones),
+  salidas (mermas, uso interno) y ajustes de inventario.
+- Cada movimiento queda registrado con fecha, usuario, cantidad, stock
+  anterior y nuevo, y motivo.
+- Alertas visuales de stock bajo: los productos por debajo del mínimo
+  configurado se destacan en la lista y en el dashboard.
+- Historial completo de movimientos de stock, con filtros por fecha,
+  usuario, tipo y origen, con exportación a PDF.
+
+---
+
+HISTORIAL DE VENTAS Y GESTIÓN DE ENTREGAS
+-------------------------------------------
+- Listado completo de ventas con filtros por fecha, cliente, estado
+  de entrega y vendedor.
+- Estado de entrega configurable por venta: pendiente, entregado, cancelado.
+- Cancelación de ventas con restauración automática del stock.
+- Reimpresión de tickets/facturas en cualquier momento.
+- Vista de detalle por venta: ítems, precios, descuentos, pagos, cliente y CFE.
+- El propietario puede ver todas las ventas; cada vendedor ve solo las suyas.
+
+---
+
+GESTIÓN DE CLIENTES
+--------------------
+- Alta, edición y baja de clientes con ficha completa:
+  nombre/razón social, RUT, tipo y número de documento, dirección, teléfono,
+  correo, departamento y horarios de atención.
+- Búsqueda instantánea al registrar una venta.
+- Datos fiscales integrados: el sistema usa el RUT del cliente para
+  determinar el tipo de CFE a emitir.
+- Historial de compras por cliente.
+
+---
+
+CATÁLOGO DE PRODUCTOS
+----------------------
+- ABM completo de productos con precio de venta, costo, stock inicial,
+  unidad de medida, tipo de IVA (22%, 10%, Exento, No Grava), código de barras.
+- Soporte de empaques: se configura el tipo (caja, funda, etc.), la
+  cantidad de unidades por empaque y el precio por empaque.
+- Imagen de producto: se puede subir un archivo o tomar una foto directo.
+- Archivado en lugar de eliminación permanente: el historial se conserva.
+
+---
+
+ESTADÍSTICAS Y ANÁLISIS DEL NEGOCIO
+--------------------------------------
+- Dashboard personalizable por usuario: cada uno elige qué métricas ver
+  y en qué orden, con rangos de tiempo configurables.
+- Métricas disponibles: ventas del día/mes, cantidad de ventas,
+  promedio por venta, clientes nuevos, ganancia del período.
+- Comparativas automáticas: variación porcentual respecto al período anterior.
+- Gráfico temporal de ventas con drill-down por período.
+- Ranking de mejor cliente, artículo más vendido, mayor venta individual.
+- Mejor día de la semana y mejor horario de ventas.
+- Dos métodos de cálculo de ganancia configurables:
+    · Margen de venta: precio - costo por ítem
+    · Flujo de caja: ventas - entradas de stock
+
+---
+
+GESTIÓN DE USUARIOS Y CONTROL DE ACCESO
+-----------------------------------------
+- Roles diferenciados: Propietario (acceso total) y Vendedor (acceso limitado).
+- Permisos granulares por módulo y acción, configurables individualmente
+  para el rol Vendedor (ver, agregar, editar, ajustar stock, etc.).
+- Login con JWT, recuperación de contraseña por código enviado al correo.
+- Cambio de contraseña obligatorio en el primer ingreso.
+- El propietario puede forzar un cambio de contraseña a cualquier usuario.
+
+---
+
+AUDITORÍA TOTAL DEL SISTEMA
+-----------------------------
+- Registro automático de todas las acciones: creación, edición y eliminación
+  de ventas, productos y clientes; ajustes de stock; cambios de configuración.
+- Historial de movimientos de stock con todos los datos del contexto.
+- Paginación eficiente: el sistema carga solo los datos del período visible,
+  sin sobrecargar la base de datos.
+- Filtros server-side por tipo, origen, usuario y búsqueda de texto.
+- Retención automática configurable: los registros más antiguos al período
+  definido se purgan automáticamente al iniciar el servidor.
+- Exportación a PDF del historial de movimientos con filtros activos.
+
+---
+
+CONFIGURACIÓN TOTAL DEL SISTEMA
+---------------------------------
+- Datos de la empresa: nombre, RUT, giro, dirección, teléfono, correo, website.
+- Logo de la empresa: aparece en el encabezado del sistema y en todos los
+  documentos impresos (tickets, facturas, PDFs).
+- Paleta de colores personalizable: el sistema adapta su apariencia visual
+  al branding de la empresa.
+- Activación/desactivación de módulos: se pueden ocultar las secciones
+  que no se utilizan.
+- Configuración de comisión de vendedor y tasa de IVA.
+- Configuración de CFE: ambiente, URLs y tokens de integración.
+
+---
+
+TECNOLOGÍA Y CONFIABILIDAD
+----------------------------
+- Aplicación web moderna, accesible desde cualquier dispositivo y navegador,
+  sin instalación de software en el cliente.
+- Backend robusto con base de datos PostgreSQL y transacciones garantizadas
+  (el stock y las ventas nunca quedan en estado inconsistente).
+- Diseño responsive: funciona en desktop, tablet y dispositivos móviles.
+- Sistema de permisos que asegura que cada usuario solo accede a lo que
+  le corresponde.

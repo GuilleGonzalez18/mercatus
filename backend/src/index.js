@@ -15,6 +15,7 @@ import { permisosRouter } from './routes/permisos.js';
 import { ubicacionesRouter } from './routes/ubicaciones.js';
 import { uploadsRouter } from './routes/uploads.js';
 import { runMigration } from './scripts/runMigration.js';
+import { pruneAuditoria } from './scripts/pruneAuditoria.js';
 
 const app = express();
 const PORT = Number(process.env.PORT || 3001);
@@ -99,4 +100,5 @@ app.listen(PORT, async () => {
     // eslint-disable-next-line no-console
     console.error('Error de migración al iniciar:', err);
   }
+  pruneAuditoria();
 });

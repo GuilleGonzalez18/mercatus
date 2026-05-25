@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { resolveAppDialog, subscribeAppDialogs } from '../../lib/appDialog';
 import './AppDialogHost.css';
 import AppButton from '../button/AppButton';
@@ -80,7 +81,7 @@ export default function AppDialogHost() {
 
   if (!dialog) return null;
 
-  return (
+  return createPortal(
     <div className="app-dialog-overlay" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId}>
       <div className="app-dialog-backdrop" onClick={() => close(false)} />
       <div className="app-dialog-card" ref={cardRef} tabIndex={-1}>
@@ -97,7 +98,8 @@ export default function AppDialogHost() {
           </AppButton>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

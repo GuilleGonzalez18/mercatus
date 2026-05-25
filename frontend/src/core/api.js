@@ -319,6 +319,10 @@ export const api = {
     if (hasta) q.set('hasta', hasta);
     return request(`/ventas?${q.toString()}`);
   },
+  buscarVentas: (q, estado = 'todos') => {
+    const params = new URLSearchParams({ q, estado });
+    return request(`/ventas/buscar?${params.toString()}`);
+  },
   cancelarVenta: (id) =>
     request(`/ventas/${id}/cancelar`, {
       method: 'PUT',
@@ -350,17 +354,15 @@ export const api = {
     const suffix = q.toString();
     return request(`/ventas/estadisticas/resumen${suffix ? `?${suffix}` : ''}`);
   },
-  getAuditoriaEventos: (desde, hasta) => {
+  getAuditoriaEventos: (params = {}) => {
     const q = new URLSearchParams();
-    if (desde) q.set('desde', desde);
-    if (hasta) q.set('hasta', hasta);
+    Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') q.set(k, v); });
     const suffix = q.toString();
     return request(`/auditoria/eventos${suffix ? `?${suffix}` : ''}`);
   },
-  getMovimientosStock: (desde, hasta) => {
+  getMovimientosStock: (params = {}) => {
     const q = new URLSearchParams();
-    if (desde) q.set('desde', desde);
-    if (hasta) q.set('hasta', hasta);
+    Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') q.set(k, v); });
     const suffix = q.toString();
     return request(`/auditoria/movimientos-stock${suffix ? `?${suffix}` : ''}`);
   },

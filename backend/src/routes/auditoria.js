@@ -71,22 +71,72 @@ auditoriaRouter.get('/eventos', requirePermission('auditoria', 'ver'), async (re
   const range = parseDateRange(req, res);
   if (!range) return;
 
-  const result = await query(
-    `SELECT a.id, a.entidad, a.entidad_id, a.accion, a.detalle, a.usuario_id,
-            COALESCE(
-              NULLIF(TRIM(CONCAT(COALESCE(u.nombre, ''), ' ', COALESCE(u.apellido, ''))), ''),
-              a.usuario_nombre
-            ) AS usuario_nombre,
-            a.created_at
-     FROM public.auditoria_eventos a
-     LEFT JOIN public.usuarios u ON u.id = a.usuario_id
-     WHERE ($1::date IS NULL OR DATE(a.created_at) >= $1::date)
-       AND ($2::date IS NULL OR DATE(a.created_at) <= $2::date)
-     ORDER BY a.created_at DESC, a.id DESC
-     LIMIT 1200`,
-    [range.desde, range.hasta]
-  );
-  return res.json(result.rows);
+  const rawPage = parseInt(req.query.page ?? '1', 10);
+  const rawPageSize = parseInt(req.query.pageSize ?? '50', 10);
+  const page = Number.isFinite(rawPage) && rawPage >= 1 ? rawPage : 1;
+  const pageSize = Number.isFinite(rawPageSize) && rawPageSize >= 1 && rawPageSize <= 10000 ? rawPageSize : 50;
+  const offset = (page - 1) * pageSize;
+
+  const accion = req.query.accion && req.query.accion !== 'todos' ? String(req.query.accion).slice(0, 50) : null;
+  const usuario = req.query.usuario && req.query.usuario !== 'todos' ? String(req.query.usuario).slice(0, 120) : null;
+  const q = req.query.q ? String(req.query.q).trim().slice(0, 100) : null;
+
+  const userExpr = `COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.nombre, ''), ' ', COALESCE(u.apellido, ''))), ''), a.usuario_nombre)`;
+
+  const [countResult, dataResult, metaResult] = await Promise.all([
+    query(
+      `SELECT COUNT(*)::int AS total
+       FROM public.auditoria_eventos a
+       LEFT JOIN public.usuarios u ON u.id = a.usuario_id
+       WHERE ($1::date IS NULL OR DATE(a.created_at) >= $1::date)
+         AND ($2::date IS NULL OR DATE(a.created_at) <= $2::date)
+         AND ($3::text IS NULL OR a.accion = $3)
+         AND ($4::text IS NULL OR ${userExpr} = $4)
+         AND ($5::text IS NULL OR (a.entidad ILIKE '%' || $5 || '%' OR COALESCE(a.detalle, '') ILIKE '%' || $5 || '%'))`,
+      [range.desde, range.hasta, accion, usuario, q],
+    ),
+    query(
+      `SELECT a.id, a.entidad, a.entidad_id, a.accion, a.detalle, a.usuario_id,
+              ${userExpr} AS usuario_nombre,
+              a.created_at
+       FROM public.auditoria_eventos a
+       LEFT JOIN public.usuarios u ON u.id = a.usuario_id
+       WHERE ($1::date IS NULL OR DATE(a.created_at) >= $1::date)
+         AND ($2::date IS NULL OR DATE(a.created_at) <= $2::date)
+         AND ($3::text IS NULL OR a.accion = $3)
+         AND ($4::text IS NULL OR ${userExpr} = $4)
+         AND ($5::text IS NULL OR (a.entidad ILIKE '%' || $5 || '%' OR COALESCE(a.detalle, '') ILIKE '%' || $5 || '%'))
+       ORDER BY a.created_at DESC, a.id DESC
+       LIMIT $6 OFFSET $7`,
+      [range.desde, range.hasta, accion, usuario, q, pageSize, offset],
+    ),
+    query(
+      `SELECT
+         (SELECT COALESCE(ARRAY_AGG(DISTINCT a.accion ORDER BY a.accion), ARRAY[]::text[])
+          FROM public.auditoria_eventos a
+          WHERE ($1::date IS NULL OR DATE(a.created_at) >= $1::date)
+            AND ($2::date IS NULL OR DATE(a.created_at) <= $2::date)
+         ) AS acciones,
+         (SELECT COALESCE(ARRAY_AGG(DISTINCT ${userExpr} ORDER BY ${userExpr}), ARRAY[]::text[])
+          FROM public.auditoria_eventos a
+          LEFT JOIN public.usuarios u ON u.id = a.usuario_id
+          WHERE ($1::date IS NULL OR DATE(a.created_at) >= $1::date)
+            AND ($2::date IS NULL OR DATE(a.created_at) <= $2::date)
+         ) AS usuarios`,
+      [range.desde, range.hasta],
+    ),
+  ]);
+
+  return res.json({
+    rows: dataResult.rows,
+    total: countResult.rows[0]?.total ?? 0,
+    page,
+    pageSize,
+    meta: {
+      acciones: metaResult.rows[0]?.acciones ?? [],
+      usuarios: metaResult.rows[0]?.usuarios ?? [],
+    },
+  });
 });
 
 auditoriaRouter.get('/stock-costo-serie', requirePermission('auditoria', 'ver'), async (req, res) => {
@@ -168,22 +218,78 @@ auditoriaRouter.get('/movimientos-stock', requirePermission('auditoria', 'ver'),
   const range = parseDateRange(req, res);
   if (!range) return;
 
-  const result = await query(
-    `SELECT m.id, m.producto_id, m.producto_nombre, m.tipo, m.origen, m.cantidad,
-            m.stock_anterior, m.stock_nuevo, m.referencia_tipo, m.referencia_id,
-            m.detalle, m.usuario_id,
-            COALESCE(
-              NULLIF(TRIM(CONCAT(COALESCE(u.nombre, ''), ' ', COALESCE(u.apellido, ''))), ''),
-              m.usuario_nombre
-            ) AS usuario_nombre,
-            m.created_at
-     FROM public.movimientos_stock m
-     LEFT JOIN public.usuarios u ON u.id = m.usuario_id
-     WHERE ($1::date IS NULL OR DATE(m.created_at) >= $1::date)
-       AND ($2::date IS NULL OR DATE(m.created_at) <= $2::date)
-     ORDER BY m.created_at DESC, m.id DESC
-     LIMIT 2000`,
-    [range.desde, range.hasta]
-  );
-  return res.json(result.rows);
+  const rawPage = parseInt(req.query.page ?? '1', 10);
+  const rawPageSize = parseInt(req.query.pageSize ?? '50', 10);
+  const page = Number.isFinite(rawPage) && rawPage >= 1 ? rawPage : 1;
+  const pageSize = Number.isFinite(rawPageSize) && rawPageSize >= 1 && rawPageSize <= 10000 ? rawPageSize : 50;
+  const offset = (page - 1) * pageSize;
+
+  const tipo = req.query.tipo && req.query.tipo !== 'todos' ? String(req.query.tipo) : null;
+  if (tipo && !['entrada', 'salida'].includes(tipo)) {
+    return res.status(400).json({ error: 'Tipo inválido. Usa "entrada" o "salida".' });
+  }
+  const origen = req.query.origen && req.query.origen !== 'todos' ? String(req.query.origen).slice(0, 50) : null;
+  const usuario = req.query.usuario && req.query.usuario !== 'todos' ? String(req.query.usuario).slice(0, 120) : null;
+  const q = req.query.q ? String(req.query.q).trim().slice(0, 100) : null;
+
+  const userExpr = `COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.nombre, ''), ' ', COALESCE(u.apellido, ''))), ''), m.usuario_nombre)`;
+
+  const [countResult, dataResult, metaResult] = await Promise.all([
+    query(
+      `SELECT COUNT(*)::int AS total
+       FROM public.movimientos_stock m
+       LEFT JOIN public.usuarios u ON u.id = m.usuario_id
+       WHERE ($1::date IS NULL OR DATE(m.created_at) >= $1::date)
+         AND ($2::date IS NULL OR DATE(m.created_at) <= $2::date)
+         AND ($3::text IS NULL OR m.tipo = $3)
+         AND ($4::text IS NULL OR m.origen = $4)
+         AND ($5::text IS NULL OR ${userExpr} = $5)
+         AND ($6::text IS NULL OR (m.producto_nombre ILIKE '%' || $6 || '%' OR COALESCE(m.detalle, '') ILIKE '%' || $6 || '%'))`,
+      [range.desde, range.hasta, tipo, origen, usuario, q],
+    ),
+    query(
+      `SELECT m.id, m.producto_id, m.producto_nombre, m.tipo, m.origen, m.cantidad,
+              m.stock_anterior, m.stock_nuevo, m.referencia_tipo, m.referencia_id,
+              m.detalle, m.usuario_id,
+              ${userExpr} AS usuario_nombre,
+              m.created_at
+       FROM public.movimientos_stock m
+       LEFT JOIN public.usuarios u ON u.id = m.usuario_id
+       WHERE ($1::date IS NULL OR DATE(m.created_at) >= $1::date)
+         AND ($2::date IS NULL OR DATE(m.created_at) <= $2::date)
+         AND ($3::text IS NULL OR m.tipo = $3)
+         AND ($4::text IS NULL OR m.origen = $4)
+         AND ($5::text IS NULL OR ${userExpr} = $5)
+         AND ($6::text IS NULL OR (m.producto_nombre ILIKE '%' || $6 || '%' OR COALESCE(m.detalle, '') ILIKE '%' || $6 || '%'))
+       ORDER BY m.created_at DESC, m.id DESC
+       LIMIT $7 OFFSET $8`,
+      [range.desde, range.hasta, tipo, origen, usuario, q, pageSize, offset],
+    ),
+    query(
+      `SELECT
+         (SELECT COALESCE(ARRAY_AGG(DISTINCT m.origen ORDER BY m.origen), ARRAY[]::text[])
+          FROM public.movimientos_stock m
+          WHERE ($1::date IS NULL OR DATE(m.created_at) >= $1::date)
+            AND ($2::date IS NULL OR DATE(m.created_at) <= $2::date)
+         ) AS origenes,
+         (SELECT COALESCE(ARRAY_AGG(DISTINCT ${userExpr} ORDER BY ${userExpr}), ARRAY[]::text[])
+          FROM public.movimientos_stock m
+          LEFT JOIN public.usuarios u ON u.id = m.usuario_id
+          WHERE ($1::date IS NULL OR DATE(m.created_at) >= $1::date)
+            AND ($2::date IS NULL OR DATE(m.created_at) <= $2::date)
+         ) AS usuarios`,
+      [range.desde, range.hasta],
+    ),
+  ]);
+
+  return res.json({
+    rows: dataResult.rows,
+    total: countResult.rows[0]?.total ?? 0,
+    page,
+    pageSize,
+    meta: {
+      origenes: metaResult.rows[0]?.origenes ?? [],
+      usuarios: metaResult.rows[0]?.usuarios ?? [],
+    },
+  });
 });
