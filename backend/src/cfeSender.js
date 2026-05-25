@@ -66,6 +66,20 @@ export async function sendCFE(ventaId, config = null) {
     throw new Error(`Error construyendo CFE para venta ${ventaId}: ${err.message}`);
   }
 
+  // Modo dry-run: loguear el JSON pero NO enviar a Dynamica.
+  // Activar con CFE_DRY_RUN=true en el .env.
+  if (process.env.CFE_DRY_RUN === 'true') {
+    console.log(`[CFE DRY-RUN] Venta #${ventaId} — payload NO enviado a Dynamica:`);
+    console.log(JSON.stringify(payload, null, 2));
+    return {
+      CFE: {
+        CFEStatus: '1',
+        CFEMsgCod: '100',
+        CFEMsgDsc: '[DRY-RUN] CFE simulado — no enviado a Dynamica',
+      },
+    };
+  }
+
   console.log(`[CFE] Enviando venta #${ventaId} → ${apiUrl}`);
   console.log(`[CFE] Payload:`, JSON.stringify(payload, null, 2));
 

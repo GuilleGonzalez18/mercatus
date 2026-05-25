@@ -3,7 +3,8 @@ const path = require('path');
 
 // Create the services directory
 const servicesDir = 'D:\\repos\\ferco-posta\\backend\\src\\services';
-
+const fechaBase = new Date(venta.fecha_entrega || venta.fecha);
+fechaBase.setFullYear(fechaBase.getFullYear() + 1);
 try {
   fs.mkdirSync(servicesDir, { recursive: true });
   console.log('✓ Services directory created:', servicesDir);
@@ -226,7 +227,7 @@ export async function buildCFE(ventaId) {
       CFEFchEmis: formatDateTime(venta.fecha),
       CFEMntBruto: '1',
       CFEFmaPago: getFmaPago(medioPago),
-      CFEFchVenc: formatDate(venta.fecha_entrega) || formatDate(venta.fecha),
+      CFEFchVenc: formatDate(fechaBase),
       CFETipoTraslado: '1',
       CFEAdenda: venta.observacion || '',
       CFENumReferencia: String(venta.id),

@@ -414,6 +414,7 @@ export default function Ventas({
   const [ticketImpreso, setTicketImpreso] = useState(false);
   const [cfeLoading, setCfeLoading] = useState(false);
   const [submittingVenta, setSubmittingVenta] = useState(false);
+  const submittingVentaRef = useRef(false);
   const [clientes, setClientes] = useState([]);
   const [carritoRestaurado, setCarritoRestaurado] = useState(false);
   const [flashIds, setFlashIds] = useState(new Set());
@@ -1365,7 +1366,8 @@ export default function Ventas({
   };
 
   const confirmarVenta = async () => {
-    if (submittingVenta) return;
+    if (submittingVentaRef.current) return;
+    submittingVentaRef.current = true;
     if (!clienteId || !fechaEntrega) {
       await appAlert('Debes seleccionar cliente y fecha de entrega.');
       return;
@@ -1476,6 +1478,7 @@ export default function Ventas({
     } catch (error) {
       await appAlert(`No se pudo registrar la venta: ${error.message}`);
     } finally {
+      submittingVentaRef.current = false;
       setSubmittingVenta(false);
     }
   };
