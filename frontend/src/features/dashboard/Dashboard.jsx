@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Productos from '../productos/Productos';
-import Ventas from '../ventas/Ventas';
-import VentasHistorial from '../ventas/VentasHistorial';
-import Clientes from '../clientes/Clientes';
-import Auditoria from '../auditoria/Auditoria';
-import Usuarios from '../usuarios/Usuarios';
-import Estadisticas from '../estadisticas/Estadisticas';
-import ControlStock from '../stock/ControlStock';
-import Configuracion from '../configuracion/Configuracion';
+import { cloneElement, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+const Ventas          = lazy(() => import('../ventas/Ventas'));
+const VentasHistorial = lazy(() => import('../ventas/VentasHistorial'));
+const Productos       = lazy(() => import('../productos/Productos'));
+const Clientes        = lazy(() => import('../clientes/Clientes'));
+const Auditoria       = lazy(() => import('../auditoria/Auditoria'));
+const Usuarios        = lazy(() => import('../usuarios/Usuarios'));
+const Estadisticas    = lazy(() => import('../estadisticas/Estadisticas'));
+const ControlStock    = lazy(() => import('../stock/ControlStock'));
+const Configuracion   = lazy(() => import('../configuracion/Configuracion'));
 import './Dashboard.css';
 import { api } from '../../core/api';
 import { CgArrowsExchange } from 'react-icons/cg';
@@ -577,7 +578,7 @@ function DashboardInner({ user, pantalla, productos, setProductos, onNavigate, o
     }
   }, [ventasCarritoCount]);
 
-  const opcionesMenu = OPCIONES.filter((op) => {
+  const opcionesMenu = useMemo(() => OPCIONES.filter((op) => {
     // Permisos dinámicos por sección
     if (op.key === 'nueva-venta' && !can('nueva-venta', 'usar')) return false;
     if (op.key === 'usuarios' && !can('usuarios', 'ver')) return false;
@@ -593,7 +594,7 @@ function DashboardInner({ user, pantalla, productos, setProductos, onNavigate, o
       if (mod && !mod.habilitado) return false;
     }
     return true;
-  });
+  }), [can, esPropietario, modulos]);
 
   const handleNavigate = (seccion) => {
     onNavigate(seccion);
@@ -617,6 +618,10 @@ function DashboardInner({ user, pantalla, productos, setProductos, onNavigate, o
 
   const closeVentasCarritoDrawer = useCallback(() => {
     setVentasCarritoAbierto(false);
+  }, []);
+
+  const toggleVentasCarritoDrawer = useCallback(() => {
+    setVentasCarritoAbierto((prev) => !prev);
   }, []);
 
   const handleLogout = () => {
@@ -663,8 +668,6 @@ function DashboardInner({ user, pantalla, productos, setProductos, onNavigate, o
               user={user}
               productos={productos}
               setProductos={setProductos}
-              carritoDrawerOpen={ventasCarritoAbierto}
-              onToggleCarritoDrawer={() => setVentasCarritoAbierto((prev) => !prev)}
               onCloseCarritoDrawer={closeVentasCarritoDrawer}
               onCarritoCountChange={setVentasCarritoCount}
             />
@@ -698,7 +701,6 @@ function DashboardInner({ user, pantalla, productos, setProductos, onNavigate, o
       setProductos,
       can,
       esPropietario,
-      ventasCarritoAbierto,
       closeVentasCarritoDrawer,
     ]
   );
@@ -909,7 +911,14 @@ function DashboardInner({ user, pantalla, productos, setProductos, onNavigate, o
               key={pantalla}
               className={`dashboard-screen-shell ${pantalla === 'nueva-venta' ? 'dashboard-screen-shell--full-height' : ''}`}
             >
-              {contenidoPantalla}
+              <Suspense fallback={<div className="dashboard-screen-loading" />}>
+                {pantalla === 'nueva-venta' && contenidoPantalla
+                  ? cloneElement(contenidoPantalla, {
+                      carritoDrawerOpen: ventasCarritoAbierto,
+                      onToggleCarritoDrawer: toggleVentasCarritoDrawer,
+                    })
+                  : contenidoPantalla}
+              </Suspense>
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../../core/api';
 import { useConfig } from '../../core/ConfigContext';
@@ -166,12 +166,23 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function normalizarEstadoEntrega(venta) {
+  if (venta?.cancelada) return 'cancelado';
+  if (String(venta?.estado_entrega || '').toLowerCase() === 'cancelado') return 'cancelado';
+  if (String(venta?.estado_entrega || '').toLowerCase() === 'entregado') return 'entregado';
+  return venta?.entregado ? 'entregado' : 'pendiente';
+}
+
 export default function VentasHistorial() {
   const { empresa } = useConfig();
   const cfeHabilitado = empresa?.cfe_habilitado === true;
   const [desde, setDesde] = useState(todayISO());
   const [hasta, setHasta] = useState(todayISO());
+  const [rangoActivo, setRangoActivo] = useState('hoy');
   const [estadoFiltro, setEstadoFiltro] = useState('todos');
+  const [vendedorFiltro, setVendedorFiltro] = useState('');
+  const [clienteFiltro, setClienteFiltro] = useState('');
+  const [cfeFiltro, setCfeFiltro] = useState('todos');
   const [ventas, setVentas] = useState([]);
   const [sortBy, setSortBy] = useState('id');
   const [sortDir, setSortDir] = useState('desc');
@@ -206,6 +217,9 @@ export default function VentasHistorial() {
   const [cfeLoteBuscando, setCfeLoteBuscando] = useState(false);
   const [cfeLoteEnviando, setCfeLoteEnviando] = useState(false);
   const [cfeLoteResultados, setCfeLoteResultados] = useState([]);
+  const [busquedaGlobal, setBusquedaGlobal] = useState('');
+  const [modoSearch, setModoSearch] = useState(false);
+  const searchDebounceRef = useRef(null);
 
   const replicarVenta = async (ventaId) => {
     setPrintingId(ventaId);
@@ -232,21 +246,15 @@ export default function VentasHistorial() {
     }
   };
 
-  const normalizarEstadoEntrega = (venta) => {
-    if (venta?.cancelada) return 'cancelado';
-    if (String(venta?.estado_entrega || '').toLowerCase() === 'cancelado') return 'cancelado';
-    if (String(venta?.estado_entrega || '').toLowerCase() === 'entregado') return 'entregado';
-    return venta?.entregado ? 'entregado' : 'pendiente';
-  };
-
   useEffect(() => {
+    if (modoSearch) return;
     const load = async () => {
-      if (!desde || !hasta) {
+      if (rangoActivo !== 'siempre' && (!desde || !hasta)) {
         setVentas([]);
         setError('');
         return;
       }
-      if (desde > hasta) {
+      if (rangoActivo !== 'siempre' && desde > hasta) {
         setVentas([]);
         setError('La fecha "Desde" no puede ser mayor que "Hasta".');
         return;
@@ -254,7 +262,7 @@ export default function VentasHistorial() {
       setLoading(true);
       setError('');
       try {
-        const rows = await api.getVentas({ desde, hasta });
+        const rows = await api.getVentas(rangoActivo === 'siempre' ? {} : { desde, hasta });
         setVentas(rows);
       } catch (err) {
         setError(err.message || 'No se pudieron cargar las ventas.');
@@ -264,27 +272,67 @@ export default function VentasHistorial() {
     };
 
     load();
-  }, [desde, hasta]);
+  }, [desde, hasta, modoSearch, rangoActivo]);
+
+  useEffect(() => {
+    if (!modoSearch || !busquedaGlobal.trim()) return;
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const rows = await api.buscarVentas(busquedaGlobal.trim(), estadoFiltro);
+        if (!cancelled) setVentas(rows);
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'No se pudieron buscar las ventas.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [modoSearch, busquedaGlobal, estadoFiltro]);
 
   const totalDelDia = useMemo(
     () => ventas.filter((v) => {
       if (v.cancelada) return false;
       if (estadoFiltro === 'canceladas') return false;
-      if (estadoFiltro === 'todos') return true;
-      const estado = normalizarEstadoEntrega(v);
-      return estado === estadoFiltro;
+      if (estadoFiltro !== 'todos' && normalizarEstadoEntrega(v) !== estadoFiltro) return false;
+      if (vendedorFiltro && v.usuario_nombre !== vendedorFiltro) return false;
+      if (clienteFiltro && (v.cliente_nombre || 'Consumidor final') !== clienteFiltro) return false;
+      if (cfeFiltro === 'enviado' && v.cfe_enviado !== true) return false;
+      if (cfeFiltro === 'pendiente' && v.cfe_enviado === true) return false;
+      return true;
     }).reduce((acc, v) => acc + Number(v.total || 0), 0),
-    [ventas, estadoFiltro]
+    [ventas, estadoFiltro, vendedorFiltro, clienteFiltro, cfeFiltro]
   );
 
   const ventasFiltradas = useMemo(() => {
-    if (estadoFiltro === 'canceladas') return ventas.filter((v) => Boolean(v.cancelada));
-    if (estadoFiltro === 'todos') return ventas;
-    const activas = ventas.filter((v) => !v.cancelada);
-    return activas.filter((v) => normalizarEstadoEntrega(v) === estadoFiltro);
-  }, [ventas, estadoFiltro]);
+    let list = ventas;
+    if (estadoFiltro === 'canceladas') {
+      list = list.filter((v) => Boolean(v.cancelada));
+    } else if (estadoFiltro !== 'todos') {
+      list = list.filter((v) => !v.cancelada && normalizarEstadoEntrega(v) === estadoFiltro);
+    }
+    if (vendedorFiltro) list = list.filter((v) => v.usuario_nombre === vendedorFiltro);
+    if (clienteFiltro) list = list.filter((v) => (v.cliente_nombre || 'Consumidor final') === clienteFiltro);
+    if (cfeFiltro === 'enviado') list = list.filter((v) => v.cfe_enviado === true);
+    else if (cfeFiltro === 'pendiente') list = list.filter((v) => v.cfe_enviado !== true);
+    return list;
+  }, [ventas, estadoFiltro, vendedorFiltro, clienteFiltro, cfeFiltro]);
+
+  const vendedoresOptions = useMemo(
+    () => [...new Set(ventas.map((v) => v.usuario_nombre).filter(Boolean))].sort(),
+    [ventas]
+  );
+
+  const clientesOptions = useMemo(
+    () => [...new Set(ventas.map((v) => v.cliente_nombre || 'Consumidor final').filter(Boolean))].sort(),
+    [ventas]
+  );
 
   const ventasOrdenadas = useMemo(() => {
+    if (modoSearch) return ventasFiltradas;
     const list = [...ventasFiltradas];
     const dir = sortDir === 'asc' ? 1 : -1;
     const asText = (v) => String(v ?? '').toLowerCase();
@@ -314,16 +362,16 @@ export default function VentasHistorial() {
     });
 
     return list;
-  }, [ventasFiltradas, sortBy, sortDir]);
+  }, [ventasFiltradas, sortBy, sortDir, modoSearch]);
 
-  const toggleSort = (column) => {
+  const toggleSort = useCallback((column) => {
     if (sortBy === column) {
       setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
       return;
     }
     setSortBy(column);
     setSortDir('asc');
-  };
+  }, [sortBy]);
 
   const buildVentaPdf = async (venta, pdfConfig) => {
     const cfg = pdfConfig || getPdfConfig('factura', empresa.pdf_factura);
@@ -873,7 +921,7 @@ export default function VentasHistorial() {
     return '';
   };
 
-  const toggleEntregado = async (ventaId, nextValue) => {
+  const toggleEntregado = useCallback(async (ventaId, nextValue) => {
     setUpdatingEntregaId(ventaId);
     try {
       await api.updateVentaEntregado(ventaId, nextValue);
@@ -889,9 +937,9 @@ export default function VentasHistorial() {
     } finally {
       setUpdatingEntregaId(null);
     }
-  };
+  }, []);
 
-  const toggleCfeEnviado = async (ventaId, nextValue) => {
+  const toggleCfeEnviado = useCallback(async (ventaId, nextValue) => {
     if (!nextValue) {
       const ok = await appConfirm(
         '¿Marcar esta venta como CFE no enviado? Esto solo actualiza el registro local y no afecta lo enviado a DGI.',
@@ -910,7 +958,7 @@ export default function VentasHistorial() {
     } finally {
       setUpdatingCfeEnviadoId(null);
     }
-  };
+  }, []);
 
   const buscarVentasCfePendientes = async () => {
     setCfeLoteBuscando(true);
@@ -1361,14 +1409,15 @@ export default function VentasHistorial() {
     }
   };
 
-  const sortMark = (column) => (sortBy === column ? (sortDir === 'asc' ? '▲' : '▼') : '');
+  const sortMark = useCallback((column) => (sortBy === column ? (sortDir === 'asc' ? '▲' : '▼') : ''), [sortBy, sortDir]);
 
-  const aplicarRango = (nextDesde, nextHasta) => {
+  const aplicarRango = (nextDesde, nextHasta, preset) => {
     setDesde(nextDesde);
     setHasta(nextHasta);
+    setRangoActivo(preset);
   };
 
-  const ventasColumns = [
+  const ventasColumns = useMemo(() => [
     {
       key: 'id',
       header: (
@@ -1505,7 +1554,7 @@ export default function VentasHistorial() {
         </label>
       ),
     }] : []),
-  ];
+  ], [sortMark, toggleSort, updatingEntregaId, updatingCfeEnviadoId, cfeHabilitado, toggleEntregado, toggleCfeEnviado]);
 
   const renderExpandedVenta = (v) => {
     const detalleVenta = detalleByVentaId[v.id] || [];
@@ -1604,68 +1653,94 @@ export default function VentasHistorial() {
     <div className="ventas-historial-main">
       <FilterSlot>
       <div className="ventas-historial-toolbar">
+        <div className="ventas-busqueda-row">
+          <AppInput
+            type="text"
+            className="ventas-busqueda-global"
+            placeholder="Buscar por cliente, producto o #..."
+            value={busquedaGlobal}
+            onChange={(e) => {
+              const val = e.target.value;
+              setBusquedaGlobal(val);
+              if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+              if (!val.trim()) {
+                setModoSearch(false);
+                return;
+              }
+              searchDebounceRef.current = setTimeout(() => setModoSearch(true), 400);
+            }}
+          />
+          {busquedaGlobal && (
+            <button
+              type="button"
+              className="ventas-busqueda-clear"
+              onClick={() => { setBusquedaGlobal(''); setModoSearch(false); }}
+              aria-label="Limpiar búsqueda"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        {modoSearch && (
+          <p className="ventas-busqueda-hint">Modo búsqueda — los filtros de fecha están inactivos</p>
+        )}
         <div className="ventas-filtros-group">
           <div className="ventas-range-stack">
             <div className="ventas-quick-range-row">
               <AppButton
                 type="button"
-                className="ticket-preset-btn"
-                onClick={() => {
-                  const y = yesterdayISO();
-                  aplicarRango(y, y);
-                }}
-              >
-                Ayer
-              </AppButton>
+                className={`ticket-preset-btn${rangoActivo === 'ayer' ? ' active' : ''}`}
+                onClick={() => { const y = yesterdayISO(); aplicarRango(y, y, 'ayer'); }}
+              >Ayer</AppButton>
               <AppButton
                 type="button"
-                className="ticket-preset-btn"
-                onClick={() => {
-                  const range = previousWeekRangeISO();
-                  aplicarRango(range.desde, range.hasta);
-                }}
-              >
-                Semana pasada
-              </AppButton>
+                className={`ticket-preset-btn${rangoActivo === 'semana_pasada' ? ' active' : ''}`}
+                onClick={() => { const r = previousWeekRangeISO(); aplicarRango(r.desde, r.hasta, 'semana_pasada'); }}
+              >Semana pasada</AppButton>
               <AppButton
                 type="button"
-                className="ticket-preset-btn"
-                onClick={() => {
-                  const range = previousMonthRangeISO();
-                  aplicarRango(range.desde, range.hasta);
-                }}
-              >
-                Mes anterior
-              </AppButton>
+                className={`ticket-preset-btn${rangoActivo === 'mes_anterior' ? ' active' : ''}`}
+                onClick={() => { const r = previousMonthRangeISO(); aplicarRango(r.desde, r.hasta, 'mes_anterior'); }}
+              >Mes anterior</AppButton>
               <AppButton
                 type="button"
-                className="ticket-preset-btn"
-                onClick={() => {
-                  const t = todayISO();
-                  aplicarRango(t, t);
-                }}
-              >
-                Hoy
-              </AppButton>
+                className={`ticket-preset-btn${rangoActivo === 'hoy' ? ' active' : ''}`}
+                onClick={() => { const t = todayISO(); aplicarRango(t, t, 'hoy'); }}
+              >Hoy</AppButton>
               <AppButton
                 type="button"
-                className="ticket-preset-btn"
-                onClick={() => {
-                  const range = monthRangeISO();
-                  aplicarRango(range.desde, range.hasta);
-                }}
-              >
-                Este mes
-              </AppButton>
+                className={`ticket-preset-btn${rangoActivo === 'este_mes' ? ' active' : ''}`}
+                onClick={() => { const r = monthRangeISO(); aplicarRango(r.desde, r.hasta, 'este_mes'); }}
+              >Este mes</AppButton>
+              <AppButton
+                type="button"
+                className={`ticket-preset-btn${rangoActivo === 'siempre' ? ' active' : ''}`}
+                onClick={() => aplicarRango('', '', 'siempre')}
+              >Siempre</AppButton>
+              <AppButton
+                type="button"
+                className={`ticket-preset-btn${rangoActivo === 'especifica' ? ' active' : ''}`}
+                onClick={() => setRangoActivo('especifica')}
+              >Fecha específica</AppButton>
             </div>
             <div className="ventas-date-estado-row">
               <label className="ventas-fecha-filter">
                 <span>Desde</span>
-                <AppInput type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+                <AppInput
+                  type="date"
+                  value={desde}
+                  readOnly={rangoActivo !== 'especifica'}
+                  onChange={rangoActivo === 'especifica' ? (e) => setDesde(e.target.value) : () => {}}
+                />
               </label>
               <label className="ventas-fecha-filter">
                 <span>Hasta</span>
-                <AppInput type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+                <AppInput
+                  type="date"
+                  value={hasta}
+                  readOnly={rangoActivo !== 'especifica'}
+                  onChange={rangoActivo === 'especifica' ? (e) => setHasta(e.target.value) : () => {}}
+                />
               </label>
               <label className="ventas-fecha-filter">
                 <span>Estado</span>
@@ -1676,6 +1751,34 @@ export default function VentasHistorial() {
                   <option value="canceladas">Canceladas</option>
                 </AppSelect>
               </label>
+              <label className="ventas-fecha-filter">
+                <span>Vendedor</span>
+                <AppSelect value={vendedorFiltro} onChange={(e) => setVendedorFiltro(e.target.value)}>
+                  <option value="">Todos</option>
+                  {vendedoresOptions.map((nombre) => (
+                    <option key={nombre} value={nombre}>{nombre}</option>
+                  ))}
+                </AppSelect>
+              </label>
+              <label className="ventas-fecha-filter">
+                <span>Cliente</span>
+                <AppSelect value={clienteFiltro} onChange={(e) => setClienteFiltro(e.target.value)}>
+                  <option value="">Todos</option>
+                  {clientesOptions.map((nombre) => (
+                    <option key={nombre} value={nombre}>{nombre}</option>
+                  ))}
+                </AppSelect>
+              </label>
+              {cfeHabilitado && (
+                <label className="ventas-fecha-filter">
+                  <span>Estado CFE</span>
+                  <AppSelect value={cfeFiltro} onChange={(e) => setCfeFiltro(e.target.value)}>
+                    <option value="todos">Todos</option>
+                    <option value="enviado">Enviado</option>
+                    <option value="pendiente">Pendiente</option>
+                  </AppSelect>
+                </label>
+              )}
             </div>
           </div>
         </div>
@@ -2138,9 +2241,11 @@ export default function VentasHistorial() {
                     if (!confirmar) return;
                   }
                   setEnviandoCFE(true);
+                  const ventaIdEmitiendo = cfeModalData.ventaId;
                   try {
-                    const result = await api.sendVentaCFE(cfeModalData.ventaId, cfeModalData.cfeEnviado);
+                    const result = await api.sendVentaCFE(ventaIdEmitiendo, cfeModalData.cfeEnviado);
                     setCfeModalData((prev) => ({ ...prev, cfeEnviado: true, envioResultado: { ok: true, result } }));
+                    setVentas((prev) => prev.map((v) => v.id === ventaIdEmitiendo ? { ...v, cfe_enviado: true } : v));
                   } catch (err) {
                     setCfeModalData((prev) => ({ ...prev, envioResultado: { ok: false, error: err.message || 'Error al emitir CFE' } }));
                   } finally {

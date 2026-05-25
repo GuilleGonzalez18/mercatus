@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import './Productos.css';
 import { FilterSlot } from '../../shared/lib/filterPanel';
 import jsPDF from 'jspdf';
@@ -58,6 +58,13 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function calcularGananciaUnidad(costo, venta) {
+  const costoNum = Number(costo);
+  const ventaNum = Number(venta);
+  if (!Number.isFinite(costoNum) || !Number.isFinite(ventaNum)) return 0;
+  return ventaNum - costoNum;
 }
 
 export default function Productos({ productos = [], setProductos }) {
@@ -748,22 +755,16 @@ export default function Productos({ productos = [], setProductos }) {
     await appAlert('Tu navegador no permite adjuntar el PDF automáticamente. Se descargó el archivo y se abrió WhatsApp Web para adjuntarlo manualmente.');
   };
 
-  const productosFiltrados = productos.filter((p) => {
+  const productosFiltrados = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
-    if (!texto) return true;
-    return [
-      p.nombre,
-      p.categoria,
-      p.ean,
-      p.tipoEmpaque,
-      p.stock,
-      p.costo,
-      p.venta,
-    ]
-      .join(' ')
-      .toLowerCase()
-      .includes(texto);
-  });
+    if (!texto) return productos;
+    return productos.filter((p) =>
+      [p.nombre, p.categoria, p.ean, p.tipoEmpaque, p.stock, p.costo, p.venta]
+        .join(' ')
+        .toLowerCase()
+        .includes(texto)
+    );
+  }, [productos, busqueda]);
 
   const sortedProductos = useMemo(() => {
     const list = [...productosFiltrados];
@@ -821,25 +822,14 @@ export default function Productos({ productos = [], setProductos }) {
     }, { totalCosto: 0, totalVenta: 0, totalGanancia: 0 });
   }, [productos]);
 
-  const toggleSort = (column) => {
+  const toggleSort = useCallback((column) => {
     if (sortBy === column) {
       setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
       return;
     }
     setSortBy(column);
     setSortDir('asc');
-  };
-
-  function calcularGananciaUnidad(costo, venta) {
-    const costoNum = Number(costo);
-    const ventaNum = Number(venta);
-
-    if (!Number.isFinite(costoNum) || !Number.isFinite(ventaNum)) {
-      return 0;
-    }
-
-    return ventaNum - costoNum;
-  }
+  }, [sortBy]);
 
   const abrirAlta = () => {
     setMostrarForm(true);
@@ -861,9 +851,9 @@ export default function Productos({ productos = [], setProductos }) {
     [nuevo.imagenPreview]
   );
 
-  const sortMark = (column) => (sortBy === column ? (sortDir === 'asc' ? '▲' : '▼') : '');
+  const sortMark = useCallback((column) => (sortBy === column ? (sortDir === 'asc' ? '▲' : '▼') : ''), [sortBy, sortDir]);
 
-  const productosColumns = [
+  const productosColumns = useMemo(() => [
     {
       key: 'imagen',
       header: 'Imagen',
@@ -996,7 +986,7 @@ export default function Productos({ productos = [], setProductos }) {
       align: 'right',
       render: (p) => formatMoney(Number(p.stock || 0) * calcularGananciaUnidad(p.costo, p.venta)),
     },
-  ];
+  ], [toggleSort, sortMark, verCosto, verGanancia]);
 
   return (
     <div className="productos-main">

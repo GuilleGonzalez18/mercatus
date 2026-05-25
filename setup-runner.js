@@ -221,7 +221,7 @@ export async function buildCFE(ventaId) {
       CFEFchEmis: formatDateTime(venta.fecha),
       CFEMntBruto: '1',
       CFEFmaPago: getFmaPago(medioPago),
-      CFEFchVenc: formatDate(venta.fecha_entrega) || formatDate(venta.fecha),
+      CFEFchVenc: formatDate(fechaBase),
       CFETipoTraslado: '1',
       CFEAdenda: venta.observacion || '',
       CFENumReferencia: String(venta.id),

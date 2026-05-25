@@ -3,7 +3,7 @@ import {
   round2, round4, formatDate, formatDateTime,
   getIteIndFact, getFmaPago, getGlosaMP, getCodMP,
   getRcpTipoDoc, getCFETipo, validateRut, getUniMed, getCodiTpoCod,
-  calcDescuentoGlobal, distributeGlobalDiscount,
+  distributeGlobalDiscount,
 } from './cfeHelpers.js';
 
 export async function buildCFE(ventaId) {
@@ -120,87 +120,73 @@ export async function buildCFE(ventaId) {
       if (hasPacks) {
         const tipoEmpaque = row.tipo_empaque || 'Empaque';
         const dscItem = `${packs} ${tipoEmpaque}${packs !== 1 ? 's' : ''} x ${packSize} unidades`;
-        rawLines.push({ ...lineBase, cantidad: unidadesPacks, precio: precioUnidad, monto: montoPacksBruto, descItem: descuentoPacksAplicado, uniMed: uniMedUnidad, dscItem });
+        rawLines.push({ ...lineBase, isPack: true, cantidad: unidadesPacks, precio: round4(precioEmpaque / packSize), monto: montoPacksBruto, descItem: descuentoPacksAplicado, uniMed: uniMedUnidad, dscItem });
       }
       if (hasSueltas) {
-        rawLines.push({ ...lineBase, cantidad: sueltas, precio: precioUnidad, monto: montoSueltasBruto, descItem: descuentoSueltasAplicado, uniMed: uniMedUnidad, dscItem: '' });
+        rawLines.push({ ...lineBase, isPack: false, cantidad: sueltas, precio: precioUnidad, monto: montoSueltasBruto, descItem: descuentoSueltasAplicado, uniMed: uniMedUnidad, dscItem: '' });
       }
+    }
+  }
+
+  // --- Diferenciar código de packs cuando el mismo producto tiene también sueltas ---
+  // Esto evita que Dynamica agrupe las dos líneas y pise los descuentos.
+  const clavesSueltas = new Set(
+    rawLines.filter((l) => !l.isPack).map((l) => `${l.codValue}|${l.indFact}`)
+  );
+  for (const l of rawLines) {
+    if (l.isPack && clavesSueltas.has(`${l.codValue}|${l.indFact}`)) {
+      l.codeTipo = 'INT1';
+      l.codValue = l.codValue + '-P';
     }
   }
 
   // --- Calcular descuento global y distribuirlo ---
-  const baseNetaItems = round2(rawLines.reduce((acc, l) => acc + l.monto - l.descItem, 0));
-  const descTotalTipo = venta.descuento_total_tipo || 'ninguno';
-  const descTotalValorRaw = Number(venta.descuento_total_valor || 0);
-  const descGlobalAmount = calcDescuentoGlobal(descTotalTipo, descTotalValorRaw, baseNetaItems);
+  // descuento_total_valor almacena itemDiscounts + globalDiscount. Restar ítems ya
+  // aplicados en rawLines para obtener solo el monto global real adicional.
+  const descuentoItemsTotalRawLines = round2(rawLines.reduce((acc, l) => acc + l.descItem, 0));
+  const descGlobalAmount = round2(Math.max(0, Number(venta.descuento_total_valor || 0) - descuentoItemsTotalRawLines));
 
-  // --- Segunda pasada: agrupar por producto y construir detalle CFE ---
   const netasLinea = rawLines.map((l) => round2(l.monto - l.descItem));
   const globalPorLinea = distributeGlobalDiscount(netasLinea, descGlobalAmount);
 
-  // Sub-paso A: acumular en Map agrupado por clave codValue|indFact
-  const grouped = new Map();
+  // --- Segunda pasada: construir detalle CFE (una línea CFE por rawLine) ---
+  const detalle = [];
+
   for (let i = 0; i < rawLines.length; i++) {
     const l = rawLines[i];
-    const key = `${l.codValue}|${l.indFact}`;
-    const descTotal = round2(l.descItem + globalPorLinea[i]);
-    if (!grouped.has(key)) {
-      grouped.set(key, {
-        indFact: l.indFact,
-        porcentaje: l.porcentaje,
-        codeTipo: l.codeTipo,
-        codValue: l.codValue,
-        nombreItem: l.nombreItem,
-        uniMed: l.uniMed,
-        firstDscItem: l.dscItem || '',
-        totalMonto: l.monto,
-        totalDescTotal: descTotal,
-        totalCantidad: l.cantidad,
-        rawLineCount: 1,
-      });
-    } else {
-      const g = grouped.get(key);
-      g.totalMonto = round2(g.totalMonto + l.monto);
-      g.totalDescTotal = round2(g.totalDescTotal + descTotal);
-      g.totalCantidad += l.cantidad;
-      g.rawLineCount += 1;
-    }
-  }
+    const descGlobalLinea = globalPorLinea[i];
 
-  // Sub-paso B: construir detalle[] e IVA desde el Map agrupado
-  const detalle = [];
-  for (const g of grouped.values()) {
-    const montoNeto = round2(g.totalMonto - g.totalDescTotal);
-    const precioUnitario = g.totalCantidad > 0 ? round4(g.totalMonto / g.totalCantidad) : 0;
+    const descTotal = round2(l.descItem + descGlobalLinea);
+    const montoNeto = round2(l.monto - descTotal);
 
-    if (g.indFact === 2 && g.porcentaje > 0) {
-      const neto = round2(montoNeto / (1 + g.porcentaje));
+    if (l.indFact === 2 && l.porcentaje > 0) {
+      const neto = round2(montoNeto / (1 + l.porcentaje));
       totNetoMin += neto;
       totIvaMin += round2(montoNeto - neto);
-    } else if (g.indFact === 3 && g.porcentaje > 0) {
-      const neto = round2(montoNeto / (1 + g.porcentaje));
+    } else if (l.indFact === 3 && l.porcentaje > 0) {
+      const neto = round2(montoNeto / (1 + l.porcentaje));
       totNetoBasica += neto;
       totIvaBasica += round2(montoNeto - neto);
     } else {
       totNoGrav += montoNeto;
     }
 
-    const descPct = g.totalMonto > 0 ? round2((g.totalDescTotal / g.totalMonto) * 100) : 0;
+    const descPct = l.monto > 0 ? round2((descTotal / l.monto) * 100) : 0;
     const itemLine = {
-      IteCodiTpoCod: g.codeTipo,
-      IteCodiCod: g.codValue,
-      IteIndFact: String(g.indFact),
-      IteNomItem: g.nombreItem,
-      IteDscItem: g.rawLineCount === 1 ? g.firstDscItem : '',
-      IteCantidad: g.totalCantidad.toFixed(3),
-      IteUniMed: g.uniMed,
-      ItePrecioUnitario: precioUnitario.toFixed(4),
+      IteCodiTpoCod: l.codeTipo,
+      IteCodiCod: l.codValue,
+      IteIndFact: String(l.indFact),
+      IteNomItem: l.nombreItem,
+      IteDscItem: l.dscItem || '',
+      IteCantidad: l.cantidad.toFixed(3),
+      IteUniMed: l.uniMed,
+      ItePrecioUnitario: l.precio.toFixed(4),
       IteMontoItem: montoNeto.toFixed(2),
     };
     // IteDescuentoPct y IteDescuentoMonto son opcionales — solo incluir si hay descuento real
-    if (g.totalDescTotal > 0) {
+    if (descTotal > 0) {
       itemLine.IteDescuentoPct = descPct.toFixed(2);
-      itemLine.IteDescuentoMonto = g.totalDescTotal.toFixed(2);
+      itemLine.IteDescuentoMonto = descTotal.toFixed(2);
     }
     detalle.push(itemLine);
   }
@@ -222,6 +208,8 @@ export async function buildCFE(ventaId) {
 
   const rcpTipoDoc = getRcpTipoDoc(cliente.tipo_documento);
   // Determinar código de país según tipo de documento
+  const fechaBase = new Date(venta.fecha_entrega || venta.fecha);
+fechaBase.setFullYear(fechaBase.getFullYear() + 1);
   function getRcpCodPais(tipoDoc) {
     const t = Number(tipoDoc);
     if (t === 2 || t === 3) return 'UY'; // RUT o CI → Uruguay
@@ -258,7 +246,7 @@ export async function buildCFE(ventaId) {
       CFEFchEmis: formatDate(venta.fecha),
       CFEMntBruto: '1',
       CFEFmaPago: getFmaPago(medioPago),
-      CFEFchVenc: formatDate(venta.fecha_entrega) || formatDate(venta.fecha),
+      CFEFchVenc: formatDate(fechaBase),
       CFETipoTraslado: '1',
       CFEAdenda: venta.observacion || '',
       CFENumReferencia: String(venta.id),

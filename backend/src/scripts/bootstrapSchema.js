@@ -374,7 +374,9 @@ const statements = [
     descuento_aplicado numeric(12,2) NOT NULL DEFAULT 0,
     descuento_packs_tipo varchar(20) NOT NULL DEFAULT 'ninguno',
     descuento_packs_valor numeric(12,2) NOT NULL DEFAULT 0,
-    descuento_packs_aplicado numeric(12,2) NOT NULL DEFAULT 0
+    descuento_packs_aplicado numeric(12,2) NOT NULL DEFAULT 0,
+    descuento_base varchar(10) NOT NULL DEFAULT 'total',
+    descuento_packs_base varchar(10) NOT NULL DEFAULT 'total'
   );
   `,
   `

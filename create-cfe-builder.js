@@ -19,10 +19,13 @@ for (let part of parts) {
 }
 
 console.log('✓ Directory structure ready');
+const fechaBase = new Date(venta.fecha);
+fechaBase.setFullYear(fechaBase.getFullYear() + 1);
 
 // Now create the cfeBuilder.js file
 const filePath = dir + '\\cfeBuilder.js';
 const content = `import { query } from '../db.js';
+
 
 function round2(value) {
   return Math.round(Number(value || 0) * 100) / 100;
@@ -239,7 +242,7 @@ export async function buildCFE(ventaId) {
       CFEFchEmis: formatDateTime(venta.fecha),
       CFEMntBruto: '1',
       CFEFmaPago: getFmaPago(medioPago),
-      CFEFchVenc: formatDate(venta.fecha_entrega) || formatDate(venta.fecha),
+      CFEFchVenc: formatDate(fechaBase),
       CFETipoTraslado: '1',
       CFEAdenda: venta.observacion || '',
       CFENumReferencia: String(venta.id),

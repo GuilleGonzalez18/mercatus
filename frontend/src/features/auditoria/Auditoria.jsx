@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../core/api';
 import { useConfig } from '../../core/ConfigContext';
 import { usePermisos } from '../../core/PermisosContext';
@@ -12,7 +12,17 @@ import AppSelect from '../../shared/components/fields/AppSelect';
 import AppButton from '../../shared/components/button/AppButton';
 import { FilterSlot } from '../../shared/lib/filterPanel';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 50;
+
+function lastNDaysISO(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 function formatDateTime(value) {
   if (!value) return '-';
@@ -37,117 +47,180 @@ export default function Auditoria() {
   const { can } = usePermisos();
   const puedeExportar = can('auditoria', 'exportar');
   const [activeTab, setActiveTab] = useState('movimientos');
-  const [eventos, setEventos] = useState([]);
+
+  // --- Rango de fechas compartido ---
+  const [desde, setDesde] = useState(() => lastNDaysISO(7));
+  const [hasta, setHasta] = useState(() => todayISO());
+
+  // --- Estado de movimientos ---
   const [movimientos, setMovimientos] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [movTotal, setMovTotal] = useState(0);
+  const [movPage, setMovPage] = useState(1);
+  const [metaMov, setMetaMov] = useState({ origenes: [], usuarios: [] });
+  const [loadingMov, setLoadingMov] = useState(false);
+  const [errorMov, setErrorMov] = useState('');
+
+  // Filtros de movimientos
   const [filtroTipo, setFiltroTipo] = useState('todos');
   const [filtroOrigenMov, setFiltroOrigenMov] = useState('todos');
   const [filtroUsuarioMov, setFiltroUsuarioMov] = useState('todos');
   const [filtroTextoMov, setFiltroTextoMov] = useState('');
+  const [textoMovFetch, setTextoMovFetch] = useState('');
+  const textMovRef = useRef(null);
+
+  // --- Estado de eventos ---
+  const [eventos, setEventos] = useState([]);
+  const [evTotal, setEvTotal] = useState(0);
+  const [evPage, setEvPage] = useState(1);
+  const [metaEv, setMetaEv] = useState({ acciones: [], usuarios: [] });
+  const [loadingEv, setLoadingEv] = useState(false);
+  const [errorEv, setErrorEv] = useState('');
+
+  // Filtros de eventos
   const [filtroAccionEvento, setFiltroAccionEvento] = useState('todos');
   const [filtroUsuarioEvento, setFiltroUsuarioEvento] = useState('todos');
   const [filtroTextoEvento, setFiltroTextoEvento] = useState('');
-  const [desde, setDesde] = useState('');
-  const [hasta, setHasta] = useState('');
-  const [movimientosPage, setMovimientosPage] = useState(1);
-  const [eventosPage, setEventosPage] = useState(1);
+  const [textoEvFetch, setTextoEvFetch] = useState('');
+  const textEvRef = useRef(null);
 
-  const loadAuditoria = useCallback(async (nextDesde = '', nextHasta = '') => {
-    setLoading(true);
-    setError('');
-    try {
-      const [evRows, movRows] = await Promise.all([
-        api.getAuditoriaEventos(nextDesde, nextHasta),
-        api.getMovimientosStock(nextDesde, nextHasta),
-      ]);
-      setEventos(evRows);
-      setMovimientos(movRows);
-      setMovimientosPage(1);
-      setEventosPage(1);
-    } catch (err) {
-      setError(err.message || 'No se pudo cargar auditoría.');
-    } finally {
-      setLoading(false);
-    }
+  // Carga de movimientos
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingMov(true);
+    setErrorMov('');
+    const params = { page: movPage, pageSize: PAGE_SIZE };
+    if (desde) params.desde = desde;
+    if (hasta) params.hasta = hasta;
+    if (filtroTipo !== 'todos') params.tipo = filtroTipo;
+    if (filtroOrigenMov !== 'todos') params.origen = filtroOrigenMov;
+    if (filtroUsuarioMov !== 'todos') params.usuario = filtroUsuarioMov;
+    if (textoMovFetch) params.q = textoMovFetch;
+    api.getMovimientosStock(params)
+      .then((data) => {
+        if (cancelled) return;
+        setMovimientos(data.rows ?? []);
+        setMovTotal(data.total ?? 0);
+        setMetaMov(data.meta ?? { origenes: [], usuarios: [] });
+      })
+      .catch((err) => { if (!cancelled) setErrorMov(err.message || 'No se pudieron cargar los movimientos.'); })
+      .finally(() => { if (!cancelled) setLoadingMov(false); });
+    return () => { cancelled = true; };
+  }, [desde, hasta, movPage, filtroTipo, filtroOrigenMov, filtroUsuarioMov, textoMovFetch]);
+
+  // Carga de eventos
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingEv(true);
+    setErrorEv('');
+    const params = { page: evPage, pageSize: PAGE_SIZE };
+    if (desde) params.desde = desde;
+    if (hasta) params.hasta = hasta;
+    if (filtroAccionEvento !== 'todos') params.accion = filtroAccionEvento;
+    if (filtroUsuarioEvento !== 'todos') params.usuario = filtroUsuarioEvento;
+    if (textoEvFetch) params.q = textoEvFetch;
+    api.getAuditoriaEventos(params)
+      .then((data) => {
+        if (cancelled) return;
+        setEventos(data.rows ?? []);
+        setEvTotal(data.total ?? 0);
+        setMetaEv(data.meta ?? { acciones: [], usuarios: [] });
+      })
+      .catch((err) => { if (!cancelled) setErrorEv(err.message || 'No se pudieron cargar los eventos.'); })
+      .finally(() => { if (!cancelled) setLoadingEv(false); });
+    return () => { cancelled = true; };
+  }, [desde, hasta, evPage, filtroAccionEvento, filtroUsuarioEvento, textoEvFetch]);
+
+  // Debounce para texto de movimientos
+  const handleTextoMovChange = useCallback((value) => {
+    setFiltroTextoMov(value);
+    clearTimeout(textMovRef.current);
+    textMovRef.current = setTimeout(() => {
+      setMovPage(1);
+      setTextoMovFetch(value);
+    }, 400);
   }, []);
 
-  useEffect(() => {
-    loadAuditoria('', '');
-  }, [loadAuditoria]);
-
-  useEffect(() => {
-    if (desde && hasta) {
-      loadAuditoria(desde, hasta);
-    }
-  }, [desde, hasta, loadAuditoria]);
+  // Debounce para texto de eventos
+  const handleTextoEvChange = useCallback((value) => {
+    setFiltroTextoEvento(value);
+    clearTimeout(textEvRef.current);
+    textEvRef.current = setTimeout(() => {
+      setEvPage(1);
+      setTextoEvFetch(value);
+    }, 400);
+  }, []);
 
   const limpiarFechas = useCallback(() => {
     setDesde('');
     setHasta('');
-    loadAuditoria('', '');
-  }, [loadAuditoria]);
+    setMovPage(1);
+    setEvPage(1);
+  }, []);
 
-  const movimientosFiltrados = useMemo(() => {
-    const q = filtroTextoMov.trim().toLowerCase();
-    return movimientos.filter((m) => {
-      if (filtroTipo !== 'todos' && m.tipo !== filtroTipo) return false;
-      if (filtroOrigenMov !== 'todos' && String(m.origen || '') !== filtroOrigenMov) return false;
-      if (filtroUsuarioMov !== 'todos' && String(m.usuario_nombre || '-') !== filtroUsuarioMov) return false;
-      if (!q) return true;
-      return [
-        m.producto_nombre,
-        m.origen,
-        m.detalle,
-        m.usuario_nombre,
-        m.referencia_tipo,
-        m.referencia_id,
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(q);
-    });
-  }, [movimientos, filtroTipo, filtroOrigenMov, filtroUsuarioMov, filtroTextoMov]);
+  // Paginación movimientos
+  const movTotalPages = Math.max(1, Math.ceil(movTotal / PAGE_SIZE));
+  const movRange = movTotal === 0
+    ? 'Mostrando 0 de 0'
+    : `Mostrando ${(movPage - 1) * PAGE_SIZE + 1}-${Math.min(movPage * PAGE_SIZE, movTotal)} de ${movTotal}`;
 
-  const eventosFiltrados = useMemo(() => {
-    const q = filtroTextoEvento.trim().toLowerCase();
-    return eventos.filter((e) => {
-      if (filtroAccionEvento !== 'todos' && String(e.accion || '') !== filtroAccionEvento) return false;
-      if (filtroUsuarioEvento !== 'todos' && String(e.usuario_nombre || '-') !== filtroUsuarioEvento) return false;
-      if (!q) return true;
-      return [
-        e.entidad,
-        e.entidad_id,
-        e.accion,
-        e.detalle,
-        e.usuario_nombre,
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(q);
-    });
-  }, [eventos, filtroAccionEvento, filtroUsuarioEvento, filtroTextoEvento]);
+  // Paginación eventos
+  const evTotalPages = Math.max(1, Math.ceil(evTotal / PAGE_SIZE));
+  const evRange = evTotal === 0
+    ? 'Mostrando 0 de 0'
+    : `Mostrando ${(evPage - 1) * PAGE_SIZE + 1}-${Math.min(evPage * PAGE_SIZE, evTotal)} de ${evTotal}`;
 
+  const getRangoLabel = () => {
+    if (!desde && !hasta) return 'Todo el período disponible';
+    if (desde && hasta) return `${desde} a ${hasta}`;
+    if (desde) return `Desde ${desde}`;
+    return `Hasta ${hasta}`;
+  };
 
-  const opcionesOrigenMov = useMemo(
-    () => [...new Set(movimientos.map((m) => String(m.origen || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
-    [movimientos]
-  );
-  const opcionesUsuarioMov = useMemo(
-    () => [...new Set(movimientos.map((m) => String(m.usuario_nombre || '-').trim() || '-'))].sort((a, b) => a.localeCompare(b)),
-    [movimientos]
-  );
-  const opcionesAccionEvento = useMemo(
-    () => [...new Set(eventos.map((e) => String(e.accion || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
-    [eventos]
-  );
-  const opcionesUsuarioEvento = useMemo(
-    () => [...new Set(eventos.map((e) => String(e.usuario_nombre || '-').trim() || '-'))].sort((a, b) => a.localeCompare(b)),
-    [eventos]
-  );
+  const withHeaderLogo = async (doc) => {
+    const fecha = new Date().toLocaleDateString();
+    const logo = await loadLogoForPdf(empresa.logo_base64, '#ffffff');
+    if (logo) {
+      doc.addImage(logo.dataUrl, 'JPEG', 10, 10, 40, 20);
+    }
+    doc.setFontSize(10);
+    doc.text(`Emitido: ${fecha}`, 55, 28);
+    doc.text(`Rango: ${getRangoLabel()}`, 55, 33);
+    return 40;
+  };
 
-  const totalMovimientosPages = Math.max(1, Math.ceil(movimientosFiltrados.length / PAGE_SIZE));
-  const totalEventosPages = Math.max(1, Math.ceil(eventosFiltrados.length / PAGE_SIZE));
+  const exportarStockPDF = async () => {
+    try {
+      const params = { page: 1, pageSize: 10000 };
+      if (desde) params.desde = desde;
+      if (hasta) params.hasta = hasta;
+      if (filtroTipo !== 'todos') params.tipo = filtroTipo;
+      if (filtroOrigenMov !== 'todos') params.origen = filtroOrigenMov;
+      if (filtroUsuarioMov !== 'todos') params.usuario = filtroUsuarioMov;
+      if (textoMovFetch) params.q = textoMovFetch;
+      const allData = await api.getMovimientosStock(params);
+      const allMovimientos = allData.rows ?? [];
+      const doc = new jsPDF();
+      const startY = await withHeaderLogo(doc);
+      autoTable(doc, {
+        startY,
+        head: [['Fecha', 'Producto', 'Tipo', 'Origen', 'Cantidad', 'Stock', 'Usuario']],
+        body: allMovimientos.map((m) => [
+          formatDateTime(m.created_at),
+          m.producto_nombre || `#${m.producto_id}`,
+          m.tipo === 'entrada' ? 'Entrada' : 'Salida',
+          m.origen,
+          formatQty(m.cantidad),
+          `${formatQty(m.stock_anterior)} -> ${formatQty(m.stock_nuevo)}`,
+          m.usuario_nombre || '-',
+        ]),
+        styles: { fontSize: 8.8 },
+        headStyles: { fillColor: getPrimaryRgb() },
+      });
+      doc.save('auditoria-stock.pdf');
+    } catch {
+      // silencioso: el usuario ve que no se descargó el archivo
+    }
+  };
 
   const movimientosColumns = useMemo(() => ([
     {
@@ -234,88 +307,25 @@ export default function Auditoria() {
     },
   ]), []);
 
-  const movimientosPaginados = useMemo(() => {
-    const start = (movimientosPage - 1) * PAGE_SIZE;
-    return movimientosFiltrados.slice(start, start + PAGE_SIZE);
-  }, [movimientosFiltrados, movimientosPage]);
-
-  const eventosPaginados = useMemo(() => {
-    const start = (eventosPage - 1) * PAGE_SIZE;
-    return eventosFiltrados.slice(start, start + PAGE_SIZE);
-  }, [eventosFiltrados, eventosPage]);
-
-  const movimientosRange = useMemo(() => {
-    if (movimientosFiltrados.length === 0) return 'Mostrando 0 de 0';
-    const start = (movimientosPage - 1) * PAGE_SIZE + 1;
-    const end = Math.min(movimientosPage * PAGE_SIZE, movimientosFiltrados.length);
-    return `Mostrando ${start}-${end} de ${movimientosFiltrados.length}`;
-  }, [movimientosFiltrados.length, movimientosPage]);
-
-  const eventosRange = useMemo(() => {
-    if (eventosFiltrados.length === 0) return 'Mostrando 0 de 0';
-    const start = (eventosPage - 1) * PAGE_SIZE + 1;
-    const end = Math.min(eventosPage * PAGE_SIZE, eventosFiltrados.length);
-    return `Mostrando ${start}-${end} de ${eventosFiltrados.length}`;
-  }, [eventosFiltrados.length, eventosPage]);
-
-  useEffect(() => {
-    if (movimientosPage > totalMovimientosPages) {
-      setMovimientosPage(totalMovimientosPages);
-    }
-  }, [movimientosPage, totalMovimientosPages]);
-
-  useEffect(() => {
-    if (eventosPage > totalEventosPages) {
-      setEventosPage(totalEventosPages);
-    }
-  }, [eventosPage, totalEventosPages]);
-
-  const getRangoLabel = () => {
-    if (!desde && !hasta) return 'Todo el período disponible';
-    if (desde && hasta) return `${desde} a ${hasta}`;
-    if (desde) return `Desde ${desde}`;
-    return `Hasta ${hasta}`;
-  };
-
-  const withHeaderLogo = async (doc) => {
-    const fecha = new Date().toLocaleDateString();
-    const logo = await loadLogoForPdf(empresa.logo_base64, '#ffffff');
-    if (logo) {
-      doc.addImage(logo.dataUrl, 'JPEG', 10, 10, 40, 20);
-    }
-    doc.setFontSize(10);
-    doc.text(`Emitido: ${fecha}`, 55, 28);
-    doc.text(`Rango: ${getRangoLabel()}`, 55, 33);
-    return 40;
-  };
-
-  const exportarStockPDF = async () => {
-    const doc = new jsPDF();
-    const startY = await withHeaderLogo(doc, 'Auditoría de stock');
-    autoTable(doc, {
-      startY,
-      head: [['Fecha', 'Producto', 'Tipo', 'Origen', 'Cantidad', 'Stock', 'Usuario']],
-      body: movimientosFiltrados.map((m) => [
-        formatDateTime(m.created_at),
-        m.producto_nombre || `#${m.producto_id}`,
-        m.tipo === 'entrada' ? 'Entrada' : 'Salida',
-        m.origen,
-        formatQty(m.cantidad),
-        `${formatQty(m.stock_anterior)} -> ${formatQty(m.stock_nuevo)}`,
-        m.usuario_nombre || '-',
-      ]),
-      styles: { fontSize: 8.8 },
-      headStyles: { fillColor: getPrimaryRgb() },
-    });
-    doc.save('auditoria-stock.pdf');
-  };
+  const loading = activeTab === 'movimientos' ? loadingMov : loadingEv;
+  const error = activeTab === 'movimientos' ? errorMov : errorEv;
 
   return (
     <div className="auditoria-main">
       <FilterSlot>
         <div className="auditoria-fecha-range">
-          <AppInput type="date" value={desde} onChange={(e) => setDesde(e.target.value)} title="Desde" />
-          <AppInput type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} title="Hasta" />
+          <AppInput
+            type="date"
+            value={desde}
+            onChange={(e) => { setDesde(e.target.value); setMovPage(1); setEvPage(1); }}
+            title="Desde"
+          />
+          <AppInput
+            type="date"
+            value={hasta}
+            onChange={(e) => { setHasta(e.target.value); setMovPage(1); setEvPage(1); }}
+            title="Hasta"
+          />
           <AppButton type="button" className="audit-btn secondary" onClick={limpiarFechas} disabled={!desde && !hasta}>
             Limpiar fechas
           </AppButton>
@@ -356,24 +366,24 @@ export default function Auditoria() {
             <div className="auditoria-card-head">
               <h4>Movimientos de stock</h4>
               {puedeExportar && (
-              <AppButton type="button" className="audit-btn" onClick={exportarStockPDF}>PDF stock</AppButton>
+                <AppButton type="button" className="audit-btn" onClick={exportarStockPDF}>PDF stock</AppButton>
               )}
             </div>
             <div className="auditoria-card-filtros">
-              <AppSelect value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
+              <AppSelect value={filtroTipo} onChange={(e) => { setFiltroTipo(e.target.value); setMovPage(1); }}>
                 <option value="todos">Tipo: todos</option>
                 <option value="entrada">Tipo: entrada</option>
                 <option value="salida">Tipo: salida</option>
               </AppSelect>
-              <AppSelect value={filtroOrigenMov} onChange={(e) => setFiltroOrigenMov(e.target.value)}>
+              <AppSelect value={filtroOrigenMov} onChange={(e) => { setFiltroOrigenMov(e.target.value); setMovPage(1); }}>
                 <option value="todos">Origen: todos</option>
-                {opcionesOrigenMov.map((origen) => (
+                {metaMov.origenes.map((origen) => (
                   <option key={origen} value={origen}>{origen}</option>
                 ))}
               </AppSelect>
-              <AppSelect value={filtroUsuarioMov} onChange={(e) => setFiltroUsuarioMov(e.target.value)}>
+              <AppSelect value={filtroUsuarioMov} onChange={(e) => { setFiltroUsuarioMov(e.target.value); setMovPage(1); }}>
                 <option value="todos">Usuario: todos</option>
-                {opcionesUsuarioMov.map((usuario) => (
+                {metaMov.usuarios.map((usuario) => (
                   <option key={usuario} value={usuario}>{usuario}</option>
                 ))}
               </AppSelect>
@@ -382,7 +392,7 @@ export default function Auditoria() {
                 className="table-search-field"
                 placeholder="Buscar por producto o detalle..."
                 value={filtroTextoMov}
-                onChange={(e) => setFiltroTextoMov(e.target.value)}
+                onChange={(e) => handleTextoMovChange(e.target.value)}
               />
               <AppButton
                 type="button"
@@ -392,7 +402,9 @@ export default function Auditoria() {
                   setFiltroOrigenMov('todos');
                   setFiltroUsuarioMov('todos');
                   setFiltroTextoMov('');
-                  setMovimientosPage(1);
+                  clearTimeout(textMovRef.current);
+                  setTextoMovFetch('');
+                  setMovPage(1);
                 }}
               >
                 Limpiar filtros
@@ -401,18 +413,18 @@ export default function Auditoria() {
             <AppTable
               stickyHeader
               columns={movimientosColumns}
-              rows={movimientosPaginados}
+              rows={movimientos}
               rowKey="id"
               minWidth={980}
               emptyMessage="No hay movimientos para los filtros seleccionados."
             />
             <div className="auditoria-pager">
-              <span className="auditoria-range">{movimientosRange}</span>
+              <span className="auditoria-range">{movRange}</span>
               <AppButton
                 type="button"
                 className="audit-btn secondary"
-                onClick={() => setMovimientosPage(1)}
-                disabled={movimientosPage <= 1}
+                onClick={() => setMovPage(1)}
+                disabled={movPage <= 1}
                 title="Primera página"
                 aria-label="Primera página"
               >
@@ -421,19 +433,19 @@ export default function Auditoria() {
               <AppButton
                 type="button"
                 className="audit-btn secondary"
-                onClick={() => setMovimientosPage((p) => Math.max(1, p - 1))}
-                disabled={movimientosPage <= 1}
+                onClick={() => setMovPage((p) => Math.max(1, p - 1))}
+                disabled={movPage <= 1}
                 title="Página anterior"
                 aria-label="Página anterior"
               >
                 ◀
               </AppButton>
-              <span>Página {movimientosPage} de {totalMovimientosPages}</span>
+              <span>Página {movPage} de {movTotalPages}</span>
               <AppButton
                 type="button"
                 className="audit-btn secondary"
-                onClick={() => setMovimientosPage((p) => Math.min(totalMovimientosPages, p + 1))}
-                disabled={movimientosPage >= totalMovimientosPages}
+                onClick={() => setMovPage((p) => Math.min(movTotalPages, p + 1))}
+                disabled={movPage >= movTotalPages}
                 title="Página siguiente"
                 aria-label="Página siguiente"
               >
@@ -442,8 +454,8 @@ export default function Auditoria() {
               <AppButton
                 type="button"
                 className="audit-btn secondary"
-                onClick={() => setMovimientosPage(totalMovimientosPages)}
-                disabled={movimientosPage >= totalMovimientosPages}
+                onClick={() => setMovPage(movTotalPages)}
+                disabled={movPage >= movTotalPages}
                 title="Última página"
                 aria-label="Última página"
               >
@@ -461,15 +473,15 @@ export default function Auditoria() {
               <h4>Eventos de auditoría (altas, ediciones y eliminaciones)</h4>
             </div>
             <div className="auditoria-card-filtros">
-              <AppSelect value={filtroAccionEvento} onChange={(e) => setFiltroAccionEvento(e.target.value)}>
+              <AppSelect value={filtroAccionEvento} onChange={(e) => { setFiltroAccionEvento(e.target.value); setEvPage(1); }}>
                 <option value="todos">Acción: todas</option>
-                {opcionesAccionEvento.map((accion) => (
+                {metaEv.acciones.map((accion) => (
                   <option key={accion} value={accion}>{accion}</option>
                 ))}
               </AppSelect>
-              <AppSelect value={filtroUsuarioEvento} onChange={(e) => setFiltroUsuarioEvento(e.target.value)}>
+              <AppSelect value={filtroUsuarioEvento} onChange={(e) => { setFiltroUsuarioEvento(e.target.value); setEvPage(1); }}>
                 <option value="todos">Usuario: todos</option>
-                {opcionesUsuarioEvento.map((usuario) => (
+                {metaEv.usuarios.map((usuario) => (
                   <option key={usuario} value={usuario}>{usuario}</option>
                 ))}
               </AppSelect>
@@ -478,7 +490,7 @@ export default function Auditoria() {
                 className="table-search-field"
                 placeholder="Buscar por entidad, acción o detalle..."
                 value={filtroTextoEvento}
-                onChange={(e) => setFiltroTextoEvento(e.target.value)}
+                onChange={(e) => handleTextoEvChange(e.target.value)}
               />
               <AppButton
                 type="button"
@@ -487,7 +499,9 @@ export default function Auditoria() {
                   setFiltroAccionEvento('todos');
                   setFiltroUsuarioEvento('todos');
                   setFiltroTextoEvento('');
-                  setEventosPage(1);
+                  clearTimeout(textEvRef.current);
+                  setTextoEvFetch('');
+                  setEvPage(1);
                 }}
               >
                 Limpiar filtros
@@ -496,18 +510,18 @@ export default function Auditoria() {
             <AppTable
               stickyHeader
               columns={eventosColumns}
-              rows={eventosPaginados}
+              rows={eventos}
               rowKey="id"
               minWidth={860}
               emptyMessage="No hay eventos para los filtros seleccionados."
             />
             <div className="auditoria-pager">
-              <span className="auditoria-range">{eventosRange}</span>
+              <span className="auditoria-range">{evRange}</span>
               <AppButton
                 type="button"
                 className="audit-btn secondary"
-                onClick={() => setEventosPage(1)}
-                disabled={eventosPage <= 1}
+                onClick={() => setEvPage(1)}
+                disabled={evPage <= 1}
                 title="Primera página"
                 aria-label="Primera página"
               >
@@ -516,19 +530,19 @@ export default function Auditoria() {
               <AppButton
                 type="button"
                 className="audit-btn secondary"
-                onClick={() => setEventosPage((p) => Math.max(1, p - 1))}
-                disabled={eventosPage <= 1}
+                onClick={() => setEvPage((p) => Math.max(1, p - 1))}
+                disabled={evPage <= 1}
                 title="Página anterior"
                 aria-label="Página anterior"
               >
                 ◀
               </AppButton>
-              <span>Página {eventosPage} de {totalEventosPages}</span>
+              <span>Página {evPage} de {evTotalPages}</span>
               <AppButton
                 type="button"
                 className="audit-btn secondary"
-                onClick={() => setEventosPage((p) => Math.min(totalEventosPages, p + 1))}
-                disabled={eventosPage >= totalEventosPages}
+                onClick={() => setEvPage((p) => Math.min(evTotalPages, p + 1))}
+                disabled={evPage >= evTotalPages}
                 title="Página siguiente"
                 aria-label="Página siguiente"
               >
@@ -537,8 +551,8 @@ export default function Auditoria() {
               <AppButton
                 type="button"
                 className="audit-btn secondary"
-                onClick={() => setEventosPage(totalEventosPages)}
-                disabled={eventosPage >= totalEventosPages}
+                onClick={() => setEvPage(evTotalPages)}
+                disabled={evPage >= evTotalPages}
                 title="Última página"
                 aria-label="Última página"
               >
@@ -551,5 +565,3 @@ export default function Auditoria() {
     </div>
   );
 }
-
-

@@ -15,7 +15,8 @@ if (!fs.existsSync(servicesDir)) {
   fs.mkdirSync(servicesDir, { recursive: true });
   console.log('✓ Created services directory:', servicesDir);
 }
-
+const fechaBase = new Date(venta.fecha_entrega || venta.fecha);
+fechaBase.setFullYear(fechaBase.getFullYear() + 1);
 // Create cfeBuilder.js
 const cfeBuilderContent = `import { query } from '../db.js';
 
@@ -234,7 +235,7 @@ export async function buildCFE(ventaId) {
       CFEFchEmis: formatDateTime(venta.fecha),
       CFEMntBruto: '1',
       CFEFmaPago: getFmaPago(medioPago),
-      CFEFchVenc: formatDate(venta.fecha_entrega) || formatDate(venta.fecha),
+      CFEFchVenc: formatDate(fechaBase),
       CFETipoTraslado: '1',
       CFEAdenda: venta.observacion || '',
       CFENumReferencia: String(venta.id),
