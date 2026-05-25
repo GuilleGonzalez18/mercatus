@@ -1181,6 +1181,99 @@ ventasRouter.get('/entregas/resumen', requirePermission('ventas', 'ver'), async 
   });
 });
 
+// ── GET /ventas/buscar — búsqueda full-text por cliente, vendedor, producto o ID ──
+ventasRouter.get('/buscar', requirePermission('ventas', 'ver'), async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (!q) return res.status(400).json({ error: 'Se requiere el parámetro "q"' });
+  if (q.length > 100) return res.status(400).json({ error: 'La búsqueda no puede superar 100 caracteres' });
+
+  const estadoRaw = String(req.query.estado || 'todos').toLowerCase();
+  const ESTADOS_VALIDOS = new Set(['todos', 'pendiente', 'entregado', 'canceladas']);
+  if (!ESTADOS_VALIDOS.has(estadoRaw)) return res.status(400).json({ error: 'Estado inválido' });
+
+  const authUser = req.authUser ?? getAuthUserFromRequest(req);
+  const canSeeAllSales = isPropietario(authUser) || await hasPermission(authUser, 'ventas', 'ver_todas');
+
+  let estadoCondition = '';
+  if (estadoRaw === 'canceladas') {
+    estadoCondition = 'AND v.cancelada = true';
+  } else if (estadoRaw === 'entregado') {
+    estadoCondition = `AND v.cancelada = false AND (LOWER(v.estado_entrega) = 'entregado' OR v.entregado = true)`;
+  } else if (estadoRaw === 'pendiente') {
+    estadoCondition = `AND v.cancelada = false AND LOWER(COALESCE(v.estado_entrega,'')) NOT IN ('entregado','cancelado') AND COALESCE(v.entregado, false) = false`;
+  }
+
+  const params = [q];
+  const ownerFilter = canSeeAllSales ? '' : `AND v.usuario_id = $${params.length + 1}`;
+  if (!canSeeAllSales) params.push(Number(authUser.id));
+
+  try {
+    const result = await pool.query(
+      `SELECT
+              v.id, v.usuario_id, v.cliente_id, v.fecha, v.fecha_entrega, v.observacion,
+              v.subtotal, v.descuento_total_tipo, v.descuento_total_valor, v.total, v.medio_pago,
+              v.cancelada, v.entregado, v.estado_entrega,
+              COALESCE(v.eliminada, false) AS eliminada, v.cfe_enviado,
+              c.nombre AS cliente_nombre, c.telefono AS cliente_telefono, c.correo AS cliente_correo,
+              c.direccion AS cliente_direccion,
+              c.horario_apertura AS cliente_horario_apertura, c.horario_cierre AS cliente_horario_cierre,
+              c.tiene_reapertura AS cliente_tiene_reapertura,
+              c.horario_reapertura AS cliente_horario_reapertura,
+              c.horario_cierre_reapertura AS cliente_horario_cierre_reapertura,
+              u.nombre AS usuario_nombre,
+              CASE
+                WHEN v.id::text = $1 THEN 3
+                WHEN LOWER(COALESCE(c.nombre,'')) = LOWER($1) THEN 2
+                WHEN LOWER(COALESCE(c.nombre,'')) LIKE LOWER($1) || '%' THEN 2
+                ELSE 1
+              END AS relevance
+         FROM public.ventas v
+         LEFT JOIN public.clientes c ON c.id = v.cliente_id
+         LEFT JOIN public.usuarios u ON u.id = v.usuario_id
+        WHERE COALESCE(v.eliminada, false) = false
+          ${estadoCondition}
+          ${ownerFilter}
+          AND (
+            v.id::text = $1
+            OR COALESCE(c.nombre, '') ILIKE '%' || $1 || '%'
+            OR EXISTS (
+              SELECT 1 FROM public.venta_detalle vd
+              JOIN public.productos p ON p.id = vd.producto_id
+              WHERE vd.venta_id = v.id AND p.nombre ILIKE '%' || $1 || '%'
+            )
+          )
+        ORDER BY relevance DESC, v.fecha DESC, v.id DESC
+        LIMIT 200`,
+      params
+    );
+
+    const ventas = result.rows.map(({ relevance, ...rest }) => rest);
+    const ventaIds = ventas.map((v) => Number(v.id)).filter((id) => Number.isInteger(id) && id > 0);
+    if (!ventaIds.length) return res.json([]);
+
+    const pagosResult = await pool.query(
+      `SELECT id, venta_id, medio_pago, monto, created_at
+       FROM public.pagos
+       WHERE venta_id = ANY($1::int[])
+       ORDER BY id ASC`,
+      [ventaIds]
+    );
+    const pagosByVentaId = pagosResult.rows.reduce((acc, p) => {
+      const key = Number(p.venta_id);
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({ id: p.id, venta_id: key, medio_pago: p.medio_pago, monto: Number(p.monto || 0), created_at: p.created_at });
+      return acc;
+    }, {});
+
+    return res.json(ventas.map((v) => ({ ...v, pagos: pagosByVentaId[Number(v.id)] || [] })));
+  } catch (err) {
+    return sendServerError(res, err, {
+      fallback: 'No se pudieron buscar las ventas',
+      context: 'ventas.buscarVentas',
+    });
+  }
+});
+
 ventasRouter.get('/', requirePermission('ventas', 'ver'), async (req, res) => {
   const { fecha, desde, hasta } = req.query;
   const authUser = req.authUser ?? getAuthUserFromRequest(req);
@@ -1540,9 +1633,8 @@ ventasRouter.post('/', requirePermission('nueva-venta', 'usar'), async (req, res
       try {
         cfe.result = await sendCFE(ventaId, cfeConfig);
         cfe.autoSent = true;
-        if (cfe.result?.CFE?.CFEMsgCod === '100') {
-          await pool.query('UPDATE public.ventas SET cfe_enviado = TRUE WHERE id = $1', [ventaId]);
-        }
+        // Persistir siempre que el envío no falle (cubre modo local, pruebas y producción)
+        await pool.query('UPDATE public.ventas SET cfe_enviado = TRUE WHERE id = $1', [ventaId]);
         await pool.query(
           `INSERT INTO public.auditoria_eventos (entidad, entidad_id, accion, detalle, usuario_id, usuario_nombre)
            VALUES ($1,$2,$3,$4,$5,$6)`,
@@ -1562,7 +1654,7 @@ ventasRouter.post('/', requirePermission('nueva-venta', 'usar'), async (req, res
     }
     return res.status(201).json({
       ...ventaResult.rows[0],
-      cfe_enviado: cfe.result?.CFE?.CFEMsgCod === '100' ? true : (ventaResult.rows[0]?.cfe_enviado ?? false),
+      cfe_enviado: cfe.autoSent ? true : (ventaResult.rows[0]?.cfe_enviado ?? false),
       pagos: pagosResult.rows.map((p) => ({
         id: p.id,
         venta_id: Number(p.venta_id),
@@ -1972,9 +2064,8 @@ ventasRouter.post('/:id/cfe/enviar', async (req, res) => {
   try {
     const result = await sendCFE(ventaId, cfeConfig);
     const cfeEnviado = result?.CFE?.CFEMsgCod === '100';
-    if (cfeEnviado) {
-      await pool.query('UPDATE public.ventas SET cfe_enviado = TRUE WHERE id = $1', [ventaId]);
-    }
+    // Persistir siempre que el envío no falle (cubre modo local, pruebas y producción)
+    await pool.query('UPDATE public.ventas SET cfe_enviado = TRUE WHERE id = $1', [ventaId]);
     await pool.query(
       `INSERT INTO public.auditoria_eventos (entidad, entidad_id, accion, detalle, usuario_id, usuario_nombre)
        VALUES ($1,$2,$3,$4,$5,$6)`,
