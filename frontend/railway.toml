@@ -1,5 +1,6 @@
 [build]
 builder = "nixpacks"
+installCommand = "npm install"
 buildCommand = "npm run build"
 
 [build.nixpacksPlan.phases.setup]
