@@ -1,4 +1,21 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+function resolveApiBase(rawValue) {
+  const fallback = 'http://localhost:3001/api';
+  const value = String(rawValue || '').trim();
+  if (!value) return fallback;
+
+  // If protocol is present, use as-is (trim trailing slash only).
+  if (/^https?:\/\//i.test(value)) {
+    return value.replace(/\/+$/, '');
+  }
+
+  // In Railway/production, users sometimes set host without protocol.
+  // Prefer https for public hosts and http for local development hosts.
+  const isLocalHost = /^localhost(?::\d+)?(?:\/|$)/i.test(value) || /^127\.0\.0\.1(?::\d+)?(?:\/|$)/.test(value);
+  const protocol = isLocalHost ? 'http://' : 'https://';
+  return `${protocol}${value}`.replace(/\/+$/, '');
+}
+
+const API_BASE = resolveApiBase(import.meta.env.VITE_API_URL);
 const TOKEN_KEY = 'mercatus_auth_token';
 
 function getToken() {
