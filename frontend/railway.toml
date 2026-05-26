@@ -2,9 +2,6 @@
 builder = "nixpacks"
 buildCommand = "npm run build"
 
-[build.nixpacksPlan.variables]
-NIXPACKS_NODE_VERSION = "20"
-
 [build.nixpacksPlan.phases.setup]
 nixPkgs = ["nodejs_20"]
 
