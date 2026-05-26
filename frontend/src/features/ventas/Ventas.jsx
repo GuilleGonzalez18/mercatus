@@ -1575,10 +1575,6 @@ export default function Ventas({
               <div className="catalogo-head">
                 {/* {pasosHeader} */}
                 <div className="catalogo-top">
-                  <div className="catalogo-top-copy">
-                    <span className="catalogo-top-badge">Venta en movimiento</span>
-                    <strong>{productosFiltrados.length} producto(s) disponibles</strong>
-                  </div>
                   <AppInput
                     id={ventasFieldId('productos', 'busqueda')}
                     type="text"
