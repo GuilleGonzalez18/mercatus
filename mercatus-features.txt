@@ -106,12 +106,21 @@ ESTADÍSTICAS Y ANÁLISIS DEL NEGOCIO
 
 GESTIÓN DE USUARIOS Y CONTROL DE ACCESO
 -----------------------------------------
-- Roles diferenciados: Propietario (acceso total) y Vendedor (acceso limitado).
-- Permisos granulares por módulo y acción, configurables individualmente
-  para el rol Vendedor (ver, agregar, editar, ajustar stock, etc.).
-- Login con JWT, recuperación de contraseña por código enviado al correo.
+- Multiusuario: varios usuarios pueden trabajar simultáneamente desde
+  distintos dispositivos sin interferencias.
+- Roles base: Propietario (acceso total) y Vendedor (acceso limitado).
+- Cada usuario vendedor tiene su propio perfil de permisos configurado
+  de forma independiente: no hay un único "rol vendedor" igual para todos.
+- Permisos granulares por módulo y acción: ver, agregar, editar, ajustar
+  stock, cancelar ventas, ver estadísticas, acceder a auditoría, etc.
+- El propietario activa o desactiva permisos por usuario en cualquier
+  momento, sin necesidad de soporte técnico.
+- Login seguro con JWT, recuperación de contraseña por código enviado
+  al correo electrónico del usuario.
 - Cambio de contraseña obligatorio en el primer ingreso.
 - El propietario puede forzar un cambio de contraseña a cualquier usuario.
+- El propietario ve todas las ventas de todos los usuarios; cada vendedor
+  ve únicamente las suyas.
 
 ---
 
@@ -132,14 +141,18 @@ AUDITORÍA TOTAL DEL SISTEMA
 CONFIGURACIÓN TOTAL DEL SISTEMA
 ---------------------------------
 - Datos de la empresa: nombre, RUT, giro, dirección, teléfono, correo, website.
-- Logo de la empresa: aparece en el encabezado del sistema y en todos los
-  documentos impresos (tickets, facturas, PDFs).
-- Paleta de colores personalizable: el sistema adapta su apariencia visual
-  al branding de la empresa.
-- Activación/desactivación de módulos: se pueden ocultar las secciones
-  que no se utilizan.
-- Configuración de comisión de vendedor y tasa de IVA.
-- Configuración de CFE: ambiente, URLs y tokens de integración.
+- Logo propio: aparece en el encabezado del sistema y en todos los
+  documentos impresos (tickets, facturas, PDFs de historial y stock).
+- Paleta de colores personalizable: el sistema adopta visualmente el
+  branding de la empresa. El cliente ve su sistema, no uno genérico.
+- Activación/desactivación de módulos: se ocultan las secciones que no
+  se utilizan para mantener la interfaz limpia y enfocada.
+- Configuración de comisión de vendedor y tasa de IVA por defecto.
+- Método de cálculo de ganancia configurable: margen por ítem o flujo de caja.
+- Retención de auditoría configurable: el propietario define cuántos días
+  de historial se conservan.
+- Configuración de CFE: ambiente (local/pruebas/producción), URLs y
+  tokens de integración con Dynamica/DGI.
 
 ---
 
@@ -147,8 +160,28 @@ TECNOLOGÍA Y CONFIABILIDAD
 ----------------------------
 - Aplicación web moderna, accesible desde cualquier dispositivo y navegador,
   sin instalación de software en el cliente.
-- Backend robusto con base de datos PostgreSQL y transacciones garantizadas
-  (el stock y las ventas nunca quedan en estado inconsistente).
-- Diseño responsive: funciona en desktop, tablet y dispositivos móviles.
+- Instalable como app (PWA): se puede agregar al escritorio o pantalla de
+  inicio del celular con un solo clic, sin pasar por App Store ni Google Play.
+  Funciona a pantalla completa como una app nativa.
+- Datos en la nube: no dependen de ninguna PC específica. Si se rompe o
+  cambia el dispositivo, todo el historial, stock y clientes siguen intactos.
+- Backend robusto con base de datos PostgreSQL y transacciones garantizadas:
+  el stock y las ventas nunca quedan en estado inconsistente, ni ante
+  cortes de conexión o errores inesperados.
+- Diseño responsive: funciona en desktop, laptop, tablet y celular.
+- Actualizaciones automáticas incluidas: el sistema se actualiza en segundo
+  plano sin interrumpir el trabajo ni requerir acción del usuario.
 - Sistema de permisos que asegura que cada usuario solo accede a lo que
   le corresponde.
+
+---
+
+PROPUESTA COMERCIAL
+--------------------
+- 30 días de prueba gratis, sin tarjeta de crédito ni compromiso.
+- Sin contrato de permanencia: se puede cancelar en cualquier momento.
+- Soporte personalizado incluido: atención directa, no tickets anónimos.
+  Siempre hay alguien disponible para resolver dudas o problemas.
+- Actualizaciones y mejoras continuas sin costo adicional.
+- Onboarding asistido: ayuda para configurar la empresa, cargar el catálogo
+  inicial y capacitar al equipo en el uso del sistema.
