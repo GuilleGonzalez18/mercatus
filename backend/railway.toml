@@ -1,0 +1,9 @@
+[build]
+builder = "nixpacks"
+buildCommand = "git clone https://$CONFIG_REPO_TOKEN@github.com/GuilleGonzalez18/mercatus-configs.git /tmp/conf && mkdir -p ../props && cp /tmp/conf/companies/$COMPANY_NAME/app.properties ../props/prop-$COMPANY_NAME.properties && rm -rf /tmp/conf && npm install"
+
+[deploy]
+startCommand = "node src/index.js"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
