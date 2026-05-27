@@ -126,7 +126,8 @@
 }
 
 .auditoria-card-filtros input {
-  min-width: 250px;
+  flex: 1;
+  min-width: 180px;
 }
 
 .auditoria-table {

@@ -19,6 +19,10 @@ export default function ControlStock({
   const [busqueda, setBusqueda] = useState('');
   const [sortBy, setSortBy] = useState('nombre');
   const [sortDir, setSortDir] = useState('asc');
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('mercatus:stock-refresh'));
+  }, []);
   const [productoIdActivo, setProductoIdActivo] = useState(null);
   const [cantidad, setCantidad] = useState('');
   const [cargando, setCargando] = useState(false);
