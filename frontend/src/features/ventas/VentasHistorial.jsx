@@ -534,7 +534,7 @@ export default function VentasHistorial() {
       body: (venta.detalle || []).map((item) => {
         const cant = Number(item.cantidad || 0);
         const precio = Number(item.precio_unitario || 0);
-        const desc = Number(item.descuento_aplicado || item.descuento_item || 0);
+        const desc = Number(item.descuento_aplicado || 0) + Number(item.descuento_packs_aplicado || 0);
         const subtotal = cant * precio - desc;
         const packs = Number(item.packs ?? -1);
         const sueltas = Number(item.unidades_sueltas ?? 0);
