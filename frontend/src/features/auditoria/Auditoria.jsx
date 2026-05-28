@@ -387,13 +387,6 @@ export default function Auditoria() {
                   <option key={usuario} value={usuario}>{usuario}</option>
                 ))}
               </AppSelect>
-              <AppInput
-                type="text"
-                className="table-search-field"
-                placeholder="Buscar por producto o detalle..."
-                value={filtroTextoMov}
-                onChange={(e) => handleTextoMovChange(e.target.value)}
-              />
               <AppButton
                 type="button"
                 className="audit-btn secondary"
@@ -409,6 +402,13 @@ export default function Auditoria() {
               >
                 Limpiar filtros
               </AppButton>
+              <AppInput
+                type="text"
+                className="table-search-field"
+                placeholder="Buscar por producto o detalle..."
+                value={filtroTextoMov}
+                onChange={(e) => handleTextoMovChange(e.target.value)}
+              />
             </div>
             <AppTable
               stickyHeader
@@ -485,13 +485,6 @@ export default function Auditoria() {
                   <option key={usuario} value={usuario}>{usuario}</option>
                 ))}
               </AppSelect>
-              <AppInput
-                type="text"
-                className="table-search-field"
-                placeholder="Buscar por entidad, acción o detalle..."
-                value={filtroTextoEvento}
-                onChange={(e) => handleTextoEvChange(e.target.value)}
-              />
               <AppButton
                 type="button"
                 className="audit-btn secondary"
@@ -506,6 +499,13 @@ export default function Auditoria() {
               >
                 Limpiar filtros
               </AppButton>
+              <AppInput
+                type="text"
+                className="table-search-field"
+                placeholder="Buscar por entidad, acción o detalle..."
+                value={filtroTextoEvento}
+                onChange={(e) => handleTextoEvChange(e.target.value)}
+              />
             </div>
             <AppTable
               stickyHeader

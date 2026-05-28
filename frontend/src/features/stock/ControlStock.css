@@ -30,7 +30,8 @@
 }
 
 .control-stock-head input {
-  min-width: 260px;
+  flex: 1;
+  min-width: 0;
 }
 
 .control-stock-layout {
