@@ -6,7 +6,7 @@ import { getPrimaryRgb, loadLogoForPdf } from '../../shared/lib/pdfColors';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { appAlert, appConfirm } from '../../shared/lib/appDialog';
-import { formatHorarioCliente, isValidHorarioRange, normalizeHoraForSave, splitHora } from '../../shared/lib/horarios';
+import { formatHorarioCliente, horaConHoraVacia, normalizeHoraForSave, splitHora } from '../../shared/lib/horarios';
 import { fireConfetti } from '../../shared/lib/confetti';
 import AppInput from '../../shared/components/fields/AppInput';
 import AppSelect from '../../shared/components/fields/AppSelect';
@@ -700,8 +700,22 @@ export default function Ventas({
       horario_cierre_reapertura: nuevoClienteForm.tiene_reapertura ? normalizeHoraForSave(nuevoClienteForm.horario_cierre_reapertura) : null,
     };
 
-    if (!isValidHorarioRange(payload.horario_apertura, payload.horario_cierre)) {
-      await appAlert('El horario de apertura debe ser menor al horario de cierre.');
+    const camposHorarioVenta = [
+      [nuevoClienteForm.horario_apertura, 'apertura'],
+      [nuevoClienteForm.horario_cierre, 'cierre'],
+      ...(nuevoClienteForm.tiene_reapertura ? [
+        [nuevoClienteForm.horario_reapertura, 'reapertura'],
+        [nuevoClienteForm.horario_cierre_reapertura, 'cierre de reapertura'],
+      ] : []),
+    ];
+    for (const [rawVal, label] of camposHorarioVenta) {
+      if (horaConHoraVacia(rawVal)) {
+        await appAlert(`Debes completar la hora de ${label}.`);
+        return;
+      }
+    }
+    if (Boolean(payload.horario_apertura) !== Boolean(payload.horario_cierre)) {
+      await appAlert('Debes completar tanto el horario de apertura como el de cierre, o dejar ambos vacíos.');
       return;
     }
     if (payload.tiene_reapertura && (!payload.horario_apertura || !payload.horario_cierre)) {
@@ -712,14 +726,25 @@ export default function Ventas({
       await appAlert('Debés completar ambos horarios de reapertura.');
       return;
     }
-    if (payload.tiene_reapertura && !isValidHorarioRange(payload.horario_reapertura, payload.horario_cierre_reapertura)) {
-      await appAlert('El horario de reapertura debe ser menor al cierre de reapertura.');
-      return;
-    }
 
     setNuevoClienteSaving(true);
     try {
-      const created = await api.createCliente(payload);
+      let created;
+      try {
+        created = await api.createCliente(payload);
+      } catch (createErr) {
+        if (createErr.status === 409 && createErr.data?.cliente) {
+          const { id: clienteEliminadoId, nombre: clienteEliminadoNombre } = createErr.data.cliente;
+          const ok = await appConfirm(
+            `El cliente "${clienteEliminadoNombre}" ya está registrado con ese documento pero fue eliminado. ¿Querés restaurarlo?`,
+            { title: 'Cliente eliminado encontrado', confirmText: 'Restaurar', cancelText: 'Cancelar' }
+          );
+          if (!ok) { setNuevoClienteSaving(false); return; }
+          created = await api.restaurarCliente(clienteEliminadoId);
+        } else {
+          throw createErr;
+        }
+      }
       const cliente = { id: created.id, nombre: created.nombre, telefono: created.telefono || '', direccion: created.direccion || '' };
       setClientes((prev) => [cliente, ...prev]);
       setClienteId(String(created.id));
@@ -2414,6 +2439,21 @@ export default function Ventas({
                   </>
                 )}
                 <div className="ncm-footer">
+                  <AppButton
+                    type="button"
+                    tone="ghost"
+                    onClick={() => setNuevoClienteForm((prev) => ({
+                      ...prev,
+                      horario_apertura: '',
+                      horario_cierre: '',
+                      tiene_reapertura: false,
+                      horario_reapertura: '',
+                      horario_cierre_reapertura: '',
+                    }))}
+                    disabled={nuevoClienteSaving}
+                  >
+                    Limpiar horarios
+                  </AppButton>
                   <AppButton type="button" tone="ghost" onClick={() => setNuevoClienteModalOpen(false)} disabled={nuevoClienteSaving}>
                     Cancelar
                   </AppButton>

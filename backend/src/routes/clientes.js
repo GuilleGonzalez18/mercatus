@@ -42,9 +42,6 @@ function normalizeHorariosPayload(payload = {}) {
   if ((payload.horario_apertura && !horario_apertura) || (payload.horario_cierre && !horario_cierre)) {
     return { error: 'Formato de horario principal inválido. Usa HH:MM' };
   }
-  if (horario_apertura && horario_cierre && toMinutes(horario_apertura) >= toMinutes(horario_cierre)) {
-    return { error: 'El horario de apertura debe ser menor al horario de cierre' };
-  }
 
   if (!tiene_reapertura) {
     horario_reapertura = null;
@@ -55,12 +52,6 @@ function normalizeHorariosPayload(payload = {}) {
     }
     if (!horario_reapertura || !horario_cierre_reapertura) {
       return { error: 'Si el cliente tiene reapertura debes completar ambos horarios de reapertura' };
-    }
-    if (toMinutes(horario_reapertura) >= toMinutes(horario_cierre_reapertura)) {
-      return { error: 'El horario de reapertura debe ser menor al cierre de reapertura' };
-    }
-    if (horario_cierre && toMinutes(horario_reapertura) <= toMinutes(horario_cierre)) {
-      return { error: 'La reapertura debe comenzar después del cierre del horario principal' };
     }
   }
 
@@ -78,6 +69,37 @@ function actorName(authUser) {
   return full || authUser?.username || authUser?.correo || null;
 }
 
+clientesRouter.get('/stats', requirePermission('clientes', 'ver'), async (_req, res) => {
+  const [totalQ, depClientesQ, depVentasQ] = await Promise.all([
+    query(`SELECT COUNT(*) AS total FROM public.clientes WHERE eliminado = false`),
+    query(`
+      SELECT d.nombre
+      FROM public.clientes c
+      JOIN public.departamentos d ON d.id = c.departamento_id
+      WHERE c.eliminado = false AND c.departamento_id IS NOT NULL
+      GROUP BY d.id, d.nombre
+      ORDER BY COUNT(c.id) DESC
+      LIMIT 1
+    `),
+    query(`
+      SELECT d.nombre
+      FROM public.ventas v
+      JOIN public.clientes c ON c.id = v.cliente_id
+      JOIN public.departamentos d ON d.id = c.departamento_id
+      WHERE v.cancelada = false AND COALESCE(v.eliminada, false) = false
+        AND c.eliminado = false AND c.departamento_id IS NOT NULL
+      GROUP BY d.id, d.nombre
+      ORDER BY SUM(v.total) DESC
+      LIMIT 1
+    `),
+  ]);
+  res.json({
+    total_clientes: Number(totalQ.rows[0]?.total ?? 0),
+    dep_mas_clientes: depClientesQ.rows[0]?.nombre ?? null,
+    dep_mas_ventas: depVentasQ.rows[0]?.nombre ?? null,
+  });
+});
+
 clientesRouter.get('/', requirePermission('clientes', 'ver'), async (_req, res) => {
   const result = await query(
     `SELECT c.id, c.nombre, c.rut, c.direccion, c.telefono, c.correo,
@@ -90,6 +112,7 @@ clientesRouter.get('/', requirePermission('clientes', 'ver'), async (_req, res) 
      FROM public.clientes c
      LEFT JOIN public.departamentos d ON d.id = c.departamento_id
      LEFT JOIN public.barrios b ON b.id = c.barrio_id
+     WHERE c.eliminado = false
      ORDER BY c.id DESC`
   );
   res.json(result.rows);
@@ -139,6 +162,24 @@ clientesRouter.post('/', requirePermission('clientes', 'agregar'), async (req, r
     horario_cierre_reapertura,
   });
   if (horarios?.error) return res.status(400).json({ error: horarios.error });
+
+  // Verificar si existe un cliente eliminado con el mismo tipo+número de documento
+  if (tipo_documento && numero_documento) {
+    const eliminadoQ = await query(
+      `SELECT id, nombre FROM public.clientes
+       WHERE eliminado = true
+         AND tipo_documento = $1
+         AND numero_documento = $2
+       LIMIT 1`,
+      [tipo_documento, numero_documento]
+    );
+    if (eliminadoQ.rows.length > 0) {
+      return res.status(409).json({
+        error: 'CLIENTE_ELIMINADO',
+        cliente: { id: eliminadoQ.rows[0].id, nombre: eliminadoQ.rows[0].nombre },
+      });
+    }
+  }
 
   try {
     const result = await query(
@@ -298,8 +339,9 @@ clientesRouter.put('/:id', requirePermission('clientes', 'editar'), async (req, 
 clientesRouter.delete('/:id', requirePermission('clientes', 'eliminar'), async (req, res) => {
   const id = Number(req.params.id);
   const authUser = getAuthUserFromRequest(req);
-  const prev = await query(`SELECT id, nombre FROM public.clientes WHERE id = $1`, [id]);
-  const result = await query(`DELETE FROM public.clientes WHERE id = $1`, [id]);
+  const prev = await query(`SELECT id, nombre FROM public.clientes WHERE id = $1 AND eliminado = false`, [id]);
+  if (!prev.rowCount) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const result = await query(`UPDATE public.clientes SET eliminado = true WHERE id = $1`, [id]);
   if (!result.rowCount) return res.status(404).json({ error: 'Cliente no encontrado' });
   const nombre = prev.rows[0]?.nombre || `#${id}`;
   await query(
@@ -309,10 +351,30 @@ clientesRouter.delete('/:id', requirePermission('clientes', 'eliminar'), async (
       'cliente',
       id,
       'eliminar',
-      `Cliente eliminado: ${nombre}`,
+      `Cliente eliminado (soft): ${nombre}`,
       authUser?.id || null,
       actorName(authUser),
     ]
   );
   return res.status(204).send();
+});
+
+clientesRouter.post('/:id/restaurar', requirePermission('clientes', 'agregar'), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'ID de cliente inválido' });
+  const authUser = getAuthUserFromRequest(req);
+  const result = await query(
+    `UPDATE public.clientes SET eliminado = false WHERE id = $1 AND eliminado = true
+     RETURNING id, nombre, rut, direccion, telefono, correo, horario_apertura, horario_cierre,
+               tiene_reapertura, horario_reapertura, horario_cierre_reapertura,
+               departamento_id, barrio_id, tipo_documento, numero_documento, ciudad, codigo_postal`,
+    [id]
+  );
+  if (!result.rowCount) return res.status(404).json({ error: 'Cliente eliminado no encontrado' });
+  await query(
+    `INSERT INTO public.auditoria_eventos (entidad, entidad_id, accion, detalle, usuario_id, usuario_nombre)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    ['cliente', id, 'restaurar', `Cliente restaurado: ${result.rows[0].nombre}`, authUser?.id || null, actorName(authUser)]
+  );
+  return res.json(result.rows[0]);
 });

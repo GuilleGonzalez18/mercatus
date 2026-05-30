@@ -14,7 +14,7 @@ import { AiFillPrinter } from 'react-icons/ai';
 import AppTable from '../../shared/components/table/AppTable';
 import AppInput from '../../shared/components/fields/AppInput';
 import AppSelect from '../../shared/components/fields/AppSelect';
-import { formatHorarioCliente, isValidHorarioRange, normalizeHoraForSave, splitHora } from '../../shared/lib/horarios';
+import { formatHorarioCliente, horaConHoraVacia, normalizeHoraForSave, splitHora } from '../../shared/lib/horarios';
 import AppButton from '../../shared/components/button/AppButton';
 import { PRINT_FONT_FAMILY_CSS } from '../../shared/lib/typography';
 
@@ -279,6 +279,7 @@ export default function Clientes() {
   const [clientes, setClientes] = useState([]);
   const [departamentos, setDepartamentos] = useState([]);
   const [todosBarrios, setTodosBarrios] = useState([]);
+  const [stats, setStats] = useState({ total_clientes: 0, dep_mas_clientes: null, dep_mas_ventas: null });
   const [ubicacionesModalOpen, setUbicacionesModalOpen] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [sortBy, setSortBy] = useState('nombre');
@@ -308,14 +309,16 @@ export default function Clientes() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [rows, deps, barrios] = await Promise.all([
+        const [rows, deps, barrios, statsData] = await Promise.all([
           api.getClientes(),
           api.getDepartamentos(),
           api.getBarrios(),
+          api.getClientesStats(),
         ]);
         setClientes(rows);
         setDepartamentos(deps);
         setTodosBarrios(barrios);
+        setStats(statsData);
       } catch (error) {
         console.error('Error cargando clientes', error);
       }
@@ -417,8 +420,24 @@ export default function Clientes() {
         codigo_postal: nuevo.codigo_postal || null,
       };
 
-      if (!isValidHorarioRange(payload.horario_apertura, payload.horario_cierre)) {
-        await appAlert('El horario de apertura debe ser menor al horario de cierre.');
+      // Bloquear si el minuto fue seleccionado pero la hora no
+      const camposHorario = [
+        [nuevo.horario_apertura, 'apertura'],
+        [nuevo.horario_cierre, 'cierre'],
+        ...(nuevo.tiene_reapertura ? [
+          [nuevo.horario_reapertura, 'reapertura'],
+          [nuevo.horario_cierre_reapertura, 'cierre de reapertura'],
+        ] : []),
+      ];
+      for (const [rawVal, label] of camposHorario) {
+        if (horaConHoraVacia(rawVal)) {
+          await appAlert(`Debes completar la hora de ${label}.`);
+          return;
+        }
+      }
+
+      if (Boolean(payload.horario_apertura) !== Boolean(payload.horario_cierre)) {
+        await appAlert('Debes completar tanto el horario de apertura como el de cierre, o dejar ambos vacíos.');
         return;
       }
       if (payload.tiene_reapertura && (!payload.horario_apertura || !payload.horario_cierre)) {
@@ -433,17 +452,31 @@ export default function Clientes() {
         await appAlert('Debes completar ambos horarios de reapertura.');
         return;
       }
-      if (payload.tiene_reapertura && !isValidHorarioRange(payload.horario_reapertura, payload.horario_cierre_reapertura)) {
-        await appAlert('El horario de reapertura debe ser menor al cierre de reapertura.');
-        return;
-      }
 
       if (editandoId) {
         const actualizado = await api.updateCliente(editandoId, payload);
-        setClientes((prev) => prev.map((c) => (c.id === editandoId ? actualizado : c)));
+        // Preserva campos de display (departamento_nombre, barrio_nombre) que el PUT no devuelve
+        setClientes((prev) => prev.map((c) => (c.id === editandoId ? { ...c, ...actualizado } : c)));
       } else {
-        const creado = await api.createCliente(payload);
-        setClientes((prev) => [creado, ...prev]);
+        let creado;
+        try {
+          creado = await api.createCliente(payload);
+        } catch (createErr) {
+          if (createErr.status === 409 && createErr.data?.cliente) {
+            const { id: clienteEliminadoId, nombre: clienteEliminadoNombre } = createErr.data.cliente;
+            const ok = await appConfirm(
+              `El cliente "${clienteEliminadoNombre}" ya está registrado con ese documento pero fue eliminado. ¿Querés restaurarlo?`,
+              { title: 'Cliente eliminado encontrado', confirmText: 'Restaurar', cancelText: 'Cancelar' }
+            );
+            if (!ok) return;
+            const restaurado = await api.restaurarCliente(clienteEliminadoId);
+            setClientes((prev) => [restaurado, ...prev]);
+            setStats((prev) => ({ ...prev, total_clientes: prev.total_clientes + 1 }));
+          } else {
+            throw createErr;
+          }
+        }
+        if (creado) setClientes((prev) => [creado, ...prev]);
       }
 
       setNuevo({
@@ -806,6 +839,21 @@ export default function Clientes() {
         </FilterSlot>
       </div>
 
+      <div className="clientes-totales">
+        <div className="clientes-total-card">
+          <span>Total Clientes</span>
+          <strong>{stats.total_clientes}</strong>
+        </div>
+        <div className="clientes-total-card">
+          <span>Dep. con más clientes</span>
+          <strong>{stats.dep_mas_clientes ?? '-'}</strong>
+        </div>
+        <div className="clientes-total-card">
+          <span>Dep. donde más se vende</span>
+          <strong>{stats.dep_mas_ventas ?? '-'}</strong>
+        </div>
+      </div>
+
       {exportModalOpen && (
         <div className="export-modal-overlay" role="dialog" aria-modal="true">
           <div className="export-modal-backdrop" onClick={() => setExportModalOpen(false)} />
@@ -1023,6 +1071,20 @@ export default function Clientes() {
                 </label>
               </>
             )}
+            <AppButton
+              type="button"
+              className="limpiar-horarios-btn"
+              onClick={() => setNuevo((prev) => ({
+                ...prev,
+                horario_apertura: '',
+                horario_cierre: '',
+                tiene_reapertura: false,
+                horario_reapertura: '',
+                horario_cierre_reapertura: '',
+              }))}
+            >
+              Limpiar horarios
+            </AppButton>
             <div className="cliente-form-actions">
               <AppButton type="submit">{editandoId ? 'Guardar cambios' : 'Guardar'}</AppButton>
               <AppButton type="button" onClick={cerrarPanel}>Cancelar</AppButton>

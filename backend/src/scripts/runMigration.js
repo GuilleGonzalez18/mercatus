@@ -950,6 +950,9 @@ const statements = [
   // === DESCUENTO BASE POR UNIDAD (v22) ===
   `ALTER TABLE public.venta_detalle ADD COLUMN IF NOT EXISTS descuento_base varchar(10) NOT NULL DEFAULT 'total';`,
   `ALTER TABLE public.venta_detalle ADD COLUMN IF NOT EXISTS descuento_packs_base varchar(10) NOT NULL DEFAULT 'total';`,
+  // === SOFT DELETE EN CLIENTES (v23) ===
+  `ALTER TABLE public.clientes ADD COLUMN IF NOT EXISTS eliminado boolean NOT NULL DEFAULT false;`,
+  `CREATE INDEX IF NOT EXISTS ix_clientes_eliminado ON public.clientes (eliminado);`,
 ];
 
 export async function runMigration() {

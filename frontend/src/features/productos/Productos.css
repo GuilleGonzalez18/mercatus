@@ -149,9 +149,7 @@
 }
 
 .buscar-producto {
-  width: min(420px, 100%);
   flex: 1 1 auto;
-  max-width: 420px;
   min-width: 0;
 }
 
