@@ -36,8 +36,7 @@
 }
 
 .table-search-field {
-  width: min(420px, 100%);
-  max-width: 420px;
+  width: 100%;
   min-width: 0;
 }
 

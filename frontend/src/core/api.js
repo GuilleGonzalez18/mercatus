@@ -52,8 +52,9 @@ async function request(path, options = {}) {
 
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
+    let data = null;
     try {
-      const data = await response.json();
+      data = await response.json();
       message = data.error || message;
     } catch {
       // keep default message
@@ -67,6 +68,7 @@ async function request(path, options = {}) {
 
     const err = new Error(message);
     err.status = response.status;
+    err.data = data;
     throw err;
   }
 
@@ -125,6 +127,7 @@ async function requestText(path, options = {}) {
 // TTL: datos de referencia (clientes, empaques, roles…) — 2 minutos
 const _cache = new Map();    // path → { data, expiresAt }
 const _inFlight = new Map(); // path → Promise (deduplicación de llamadas simultáneas)
+const _cacheEpoch = new Map(); // path → número de invalidaciones (evita que un GET in-flight pise un PUT posterior)
 const CACHE_TTL_MS = 2 * 60 * 1000;
 
 function cacheGet(key) {
@@ -137,17 +140,29 @@ function cacheSet(key, data) {
   _cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 function cacheInvalidate(prefix) {
-  for (const key of _cache.keys()) { if (key.startsWith(prefix)) _cache.delete(key); }
+  for (const key of _cache.keys()) {
+    if (key.startsWith(prefix)) {
+      _cache.delete(key);
+      _cacheEpoch.set(key, (_cacheEpoch.get(key) || 0) + 1);
+    }
+  }
 }
-function cacheClearAll() { _cache.clear(); _inFlight.clear(); }
+function cacheClearAll() { _cache.clear(); _inFlight.clear(); _cacheEpoch.clear(); }
 
 /** GET con caché + deduplicación de requests simultáneos */
 function cachedRequest(path) {
   const cached = cacheGet(path);
   if (cached !== null) return Promise.resolve(cached);
   if (_inFlight.has(path)) return _inFlight.get(path);
+  const epochAtStart = _cacheEpoch.get(path) || 0;
   const promise = request(path)
-    .then(data => { cacheSet(path, data); return data; })
+    .then(data => {
+      // Solo escribe en caché si no hubo invalidación mientras el request estaba en vuelo
+      if ((_cacheEpoch.get(path) || 0) === epochAtStart) {
+        cacheSet(path, data);
+      }
+      return data;
+    })
     .finally(() => { _inFlight.delete(path); });
   _inFlight.set(path, promise);
   return promise;
@@ -262,6 +277,10 @@ export const api = {
       .then(r => { cacheInvalidate('/clientes'); return r; }),
   deleteCliente: (id) =>
     request(`/clientes/${id}`, { method: 'DELETE' })
+      .then(r => { cacheInvalidate('/clientes'); return r; }),
+  getClientesStats: () => request('/clientes/stats'),
+  restaurarCliente: (id) =>
+    request(`/clientes/${id}/restaurar`, { method: 'POST' })
       .then(r => { cacheInvalidate('/clientes'); return r; }),
 
   getDepartamentos: () => cachedRequest('/ubicaciones/departamentos'),

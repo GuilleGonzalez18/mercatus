@@ -19,8 +19,22 @@ export function splitHora(value) {
 }
 
 export function normalizeHoraForSave(value) {
-  const safe = normalizeHora(value);
-  return safe || null;
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const [hRaw = '', mRaw = ''] = raw.split(':');
+  if (!hRaw) return null; // hora vacía → no se puede normalizar
+  const hh = Number(hRaw);
+  const mm = mRaw !== '' ? Number(mRaw) : 0; // minuto vacío → 00
+  if (!Number.isInteger(hh) || hh < 0 || hh > 23) return null;
+  if (!Number.isInteger(mm) || mm < 0 || mm > 59) return null;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+export function horaConHoraVacia(value) {
+  // Devuelve true si el usuario seleccionó un minuto pero dejó la hora vacía
+  const raw = String(value || '').trim();
+  const [hRaw = ''] = raw.split(':');
+  return !hRaw && raw.length > 1;
 }
 
 export function formatHorarioCliente(cliente = {}) {

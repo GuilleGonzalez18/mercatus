@@ -119,6 +119,36 @@
   margin-left: auto;
 }
 
+.clientes-totales {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.clientes-total-card {
+  background: #fff;
+  border: 1px solid #e4ebf4;
+  border-radius: 10px;
+  padding: 0.52rem 0.65rem;
+  box-shadow: 0 1px 6px rgba(55,95,140,0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.clientes-total-card span {
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.clientes-total-card strong {
+  color: var(--color-primary);
+  font-size: 0.96rem;
+}
+
 .cliente-form {
   background: #fff;
   border: none;
@@ -174,6 +204,22 @@
 .field-checkbox-inline input[type='checkbox'] {
   width: 16px;
   height: 16px;
+}
+
+.limpiar-horarios-btn {
+  background: transparent;
+  border: 1px solid #c0cad8;
+  color: #6b7a90;
+  font-size: 0.76rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 7px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.limpiar-horarios-btn:hover {
+  background: #f4f7fc;
+  border-color: #a0afc0;
 }
 
 .cliente-form-actions {
