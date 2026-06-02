@@ -31,23 +31,42 @@ function setToken(token) {
 }
 
 async function request(path, options = {}) {
+  const { timeoutMs, ...fetchOptions } = options;
   const token = getToken();
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
+  // Timeout opcional vía AbortController: si la red/backend no responde a tiempo,
+  // se cancela la solicitud automáticamente en vez de quedar colgada para siempre.
+  let controller;
+  let timeoutId;
+  if (timeoutMs) {
+    controller = new AbortController();
+    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  }
+
   let response;
   try {
     response = await fetch(`${API_BASE}${path}`, {
       headers: {
         'Content-Type': 'application/json',
         ...authHeaders,
-        ...(options.headers || {}),
+        ...(fetchOptions.headers || {}),
       },
-      ...options,
+      ...(controller ? { signal: controller.signal } : {}),
+      ...fetchOptions,
     });
   } catch (error) {
+    if (error?.name === 'AbortError') {
+      const timeoutError = new Error('La solicitud tardó demasiado y se canceló automáticamente.');
+      timeoutError.isTimeout = true;
+      throw timeoutError;
+    }
     if (error instanceof TypeError) {
       throw new Error('No se pudo conectar con el backend. Valide con RPG Software.');
     }
     throw error;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 
   if (!response.ok) {
@@ -367,8 +386,8 @@ export const api = {
     request(`/ventas/${id}`, {
       method: 'DELETE',
     }),
-  createVenta: (payload) =>
-    request('/ventas', { method: 'POST', body: JSON.stringify(payload) }),
+  createVenta: (payload, { timeoutMs } = {}) =>
+    request('/ventas', { method: 'POST', body: JSON.stringify(payload), timeoutMs }),
   getDashboardResumen: () => request('/ventas/dashboard/resumen'),
   getDashboardWidget: ({ category, type, metric, range, comparison_period }) => {
     const q = new URLSearchParams({ category, type, metric });

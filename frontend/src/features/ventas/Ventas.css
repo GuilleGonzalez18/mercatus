@@ -1661,6 +1661,69 @@
   background: #8090a4;
 }
 
+/* Overlay de carga al confirmar venta: logo girando + texto */
+.venta-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 31, 46, 0.55);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.venta-loading-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.venta-loading-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.6rem 2rem;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 14px 36px rgba(15, 24, 36, 0.28);
+}
+
+.venta-loading-logo {
+  width: 64px;
+  height: 64px;
+  animation: venta-loading-spin 1s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+.venta-loading-text {
+  margin: 0;
+  font-weight: 600;
+  color: #2e3a4d;
+  font-size: 0.95rem;
+}
+
+@keyframes venta-loading-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .venta-loading-overlay {
+    transition: none;
+  }
+  .venta-loading-logo {
+    animation: venta-loading-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes venta-loading-pulse {
+    0%, 100% { opacity: 0.55; }
+    50%      { opacity: 1; }
+  }
+}
+
 .venta-final-overlay {
   position: fixed;
   inset: 0;

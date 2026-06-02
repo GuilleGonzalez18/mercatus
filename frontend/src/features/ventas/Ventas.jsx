@@ -14,6 +14,8 @@ import AppTextarea from '../../shared/components/fields/AppTextarea';
 import AppButton from '../../shared/components/button/AppButton';
 
 const PASOS = ['Productos y carrito', 'Pago y preventa'];
+// Tiempo máximo de espera al confirmar una venta antes de auto-cancelar (ms).
+const VENTA_TIMEOUT_MS = 20000;
 const MEDIOS_PAGO = [
   { key: 'efectivo', label: 'Efectivo', icon: '/cash.svg' },
   { key: 'debito', label: 'Débito', icon: '/debit.svg' },
@@ -1429,8 +1431,10 @@ export default function Ventas({
   };
 
   const confirmarVenta = async () => {
+    // Si ya hay un envío en curso, ignorar el click (anti doble-submit).
     if (submittingVentaRef.current) return;
-    submittingVentaRef.current = true;
+
+    // --- Validaciones previas (sin tomar el lock, para no dejarlo "pegado") ---
     if (!clienteId || !fechaEntrega) {
       await appAlert('Debes seleccionar cliente y fecha de entrega.');
       return;
@@ -1454,7 +1458,12 @@ export default function Ventas({
       return acc;
     }, {});
 
+    // --- Bloqueo + envío: el finally libera el lock SIEMPRE, pase lo que pase ---
+    // Las alertas se muestran DESPUÉS de cerrar el overlay de carga, para que no
+    // queden tapadas por él (el overlay vive en un stacking context distinto al diálogo).
+    submittingVentaRef.current = true;
     setSubmittingVenta(true);
+    let alertaPendiente = '';
     try {
       const ventaCreada = await api.createVenta({
         usuario_id: user?.id ?? null,
@@ -1485,7 +1494,7 @@ export default function Ventas({
           descuento_packs_aplicado: toNumber(item.descuentoPacksAplicado),
           descuento_packs_base: item.descuentoPacksBase || 'total',
         })),
-      });
+      }, { timeoutMs: VENTA_TIMEOUT_MS });
 
       window.dispatchEvent(
         new CustomEvent('mercatus:stats-refresh', {
@@ -1538,14 +1547,23 @@ export default function Ventas({
           .catch(() => {}); // silencioso, no interrumpe el flujo
       }
       if (ventaCreada?.cfe?.autoAttempted && ventaCreada?.cfe?.autoError) {
-        await appAlert(`Venta registrada correctamente.\n\nEl CFE no fue emitido:\n${ventaCreada.cfe.autoError}`);
+        alertaPendiente = `Venta registrada correctamente.\n\nEl CFE no fue emitido:\n${ventaCreada.cfe.autoError}`;
       }
     } catch (error) {
-      await appAlert(`No se pudo registrar la venta: ${error.message}`);
+      if (error?.isTimeout) {
+        alertaPendiente =
+          'La venta tardó demasiado en confirmarse y se canceló automáticamente.\n\n' +
+          'Verificá tu conexión. Antes de reintentar, revisá en el historial si la venta llegó a registrarse.';
+      } else {
+        alertaPendiente = `No se pudo registrar la venta: ${error.message}`;
+      }
     } finally {
       submittingVentaRef.current = false;
       setSubmittingVenta(false);
     }
+
+    // El overlay de carga ya se cerró: ahora sí mostramos el aviso (si lo hay).
+    if (alertaPendiente) await appAlert(alertaPendiente);
   };
 
   return (
@@ -2186,6 +2204,25 @@ export default function Ventas({
         onApply={applyGlobalDiscount}
         idPrefix={ventasButtonId('descuento-global-modal')}
       />
+
+      <div
+        className={`venta-loading-overlay ${submittingVenta ? 'open' : ''}`}
+        aria-hidden={!submittingVenta}
+        role="alertdialog"
+        aria-busy={submittingVenta}
+        aria-label="Confirmando venta"
+      >
+        <div className="venta-loading-box">
+          <img
+            src="/favicon.png"
+            alt=""
+            className="venta-loading-logo"
+            aria-hidden="true"
+            draggable="false"
+          />
+          <p className="venta-loading-text">Confirmando venta…</p>
+        </div>
+      </div>
 
       <div
         className={`venta-final-overlay ${ventaFinalizada ? 'open' : ''}`}
