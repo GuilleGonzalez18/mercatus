@@ -14,6 +14,7 @@ import { configuracionRouter } from './routes/configuracion.js';
 import { permisosRouter } from './routes/permisos.js';
 import { ubicacionesRouter } from './routes/ubicaciones.js';
 import { uploadsRouter } from './routes/uploads.js';
+import { flujoStockRouter } from './routes/flujo-stock.js';
 import { runMigration } from './scripts/runMigration.js';
 import { pruneAuditoria } from './scripts/pruneAuditoria.js';
 
@@ -76,6 +77,7 @@ app.use('/api/configuracion', configuracionRouter);
 app.use('/api/permisos', permisosRouter);
 app.use('/api/ubicaciones', ubicacionesRouter);
 app.use('/api/uploads', uploadsRouter);
+app.use('/api/flujo-stock', flujoStockRouter);
 
 app.use((error, _req, res, _next) => {
   if (error?.type === 'entity.parse.failed') {

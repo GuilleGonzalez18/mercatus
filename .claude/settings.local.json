@@ -7,7 +7,9 @@
       "Bash(findstr :3001)",
       "Bash(tasklist /fi \"PID eq 15632\" /fo list)",
       "PowerShell(Stop-Process -Id 15632 -Force)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(Get-ChildItem -Path \"d:\\\\repos\\\\mercatus\" -Force)",
+      "Bash(Select-Object Name, FullName)"
     ]
   }
 }

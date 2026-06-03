@@ -429,6 +429,10 @@ export const api = {
     return request(`/auditoria/stock-costo-serie${suffix ? `?${suffix}` : ''}`);
   },
 
+  // ── FLUJO DE STOCK ───────────────────────────────────────────────────────────
+  getFlujoStock: (productoId) => request(`/flujo-stock/${productoId}`),
+  getFlujoStockResumen: () => request('/flujo-stock'),
+
   // ── CONFIGURACIÓN ──────────────────────────────────────────────────────────
   getConfigEmpresa: () => cachedRequest('/configuracion/empresa'),
   updateConfigEmpresa: (payload) =>
