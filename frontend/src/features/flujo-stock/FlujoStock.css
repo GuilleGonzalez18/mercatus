@@ -1,0 +1,249 @@
+.flujo-stock {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+  gap: 1rem;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ── Lista de productos ──────────────────────────────────────────── */
+.flujo-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.flujo-list-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.9rem 0.9rem 0.7rem;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.flujo-list-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--color-text, #1d2b3e);
+}
+
+.flujo-export-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.flujo-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  justify-content: center;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.5rem;
+}
+
+.flujo-export-error {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-danger, #d32f2f);
+}
+
+.flujo-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.6rem;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.flujo-list-empty {
+  margin: 0.6rem;
+  color: var(--color-text-muted, #526278);
+  font-size: 0.85rem;
+}
+
+.flujo-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text, #1d2b3e);
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.flujo-list-item:hover {
+  background: var(--color-primary-soft, #fce8e8);
+}
+
+.flujo-list-item.active {
+  background: var(--color-primary-soft, #fce8e8);
+  border-color: var(--color-primary, #cc2222);
+  font-weight: 700;
+}
+
+.flujo-list-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flujo-list-item-tag {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--color-text-muted, #526278);
+  background: var(--color-bg, #f1f5f9);
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+}
+
+/* ── Detalle ─────────────────────────────────────────────────────── */
+.flujo-detail {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.flujo-detail-placeholder,
+.flujo-msg {
+  padding: 1.2rem;
+  color: var(--color-text-muted, #526278);
+}
+
+.flujo-msg.error {
+  color: var(--color-danger, #d32f2f);
+}
+
+.flujo-detail-head {
+  margin-bottom: 1rem;
+}
+
+.flujo-detail-head h2 {
+  margin: 0 0 0.2rem;
+  color: var(--color-text, #1d2b3e);
+}
+
+.flujo-detail-head p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted, #526278);
+}
+
+.flujo-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.flujo-metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 16px;
+  padding: 1rem;
+}
+
+.flujo-metric-head {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.flujo-metric-lottie {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+}
+
+.flujo-metric-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.flujo-metric-kicker {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: var(--color-primary, #cc2222);
+}
+
+.flujo-metric-value {
+  font-size: 1.6rem;
+  line-height: 1.1;
+  color: var(--color-text, #1d2b3e);
+}
+
+.flujo-metric-value small {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #526278);
+}
+
+.flujo-metric-desc {
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #526278);
+}
+
+.flujo-metric-chart {
+  width: 100%;
+  height: 180px;
+}
+
+.flujo-metric-empty {
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted, #526278);
+  font-size: 0.85rem;
+}
+
+.flujo-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.78rem;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+}
+
+.flujo-tooltip strong {
+  color: var(--color-text, #1d2b3e);
+}
+
+.flujo-tooltip span {
+  color: var(--color-primary, #cc2222);
+  font-weight: 700;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .flujo-stock {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .flujo-list {
+    max-height: 280px;
+  }
+}

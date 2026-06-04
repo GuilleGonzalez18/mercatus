@@ -1317,11 +1317,12 @@ function TabGanancias() {
 
 const RECURSOS = [
   { key: 'nueva-venta', label: 'Nueva venta',  acciones: ['usar'] },
-  { key: 'ventas',      label: 'Ventas',        acciones: ['ver', 'ver_todas', 'eliminar', 'exportar'] },
+  { key: 'ventas',      label: 'Ventas',        acciones: ['ver', 'ver_todas', 'eliminar', 'eliminar_todas', 'exportar'] },
   { key: 'productos',   label: 'Productos',     acciones: ['ver', 'agregar', 'editar', 'eliminar', 'ver_archivados', 'gestionar_empaques', 'ver_costo', 'ver_ganancia', 'exportar'] },
   { key: 'clientes',    label: 'Clientes',      acciones: ['ver', 'agregar', 'editar', 'eliminar', 'exportar'] },
   { key: 'usuarios',    label: 'Usuarios',      acciones: ['ver', 'agregar', 'editar', 'eliminar'] },
   { key: 'estadisticas',label: 'Estadísticas',  acciones: ['ver', 'ver_empresa', 'ver_por_usuario', 'exportar'] },
+  { key: 'flujo-stock', label: 'Flujo de Stock', acciones: ['ver'] },
   { key: 'stock',       label: 'Stock',         acciones: ['ver', 'editar'] },
   { key: 'auditoria',   label: 'Auditoría',     acciones: ['ver', 'exportar'] },
   { key: 'configuracion',label:'Configuración', acciones: ['ver'] },
@@ -1333,6 +1334,7 @@ const ACCION_LABELS = {
   ver_ganancia: 'Ver ganancia', ver_archivados: 'Ver archivados',
   gestionar_empaques: 'Gestionar empaques',
   ver_empresa: 'Ver empresa', ver_por_usuario: 'Ver por usuario', ver_todas: 'Ver todas',
+  eliminar_todas: 'Eliminar/cancelar todas',
 };
 
 function ResumenPermisos({ recurso, acciones, permisos }) {

@@ -8,11 +8,12 @@ const Auditoria       = lazy(() => import('../auditoria/Auditoria'));
 const Usuarios        = lazy(() => import('../usuarios/Usuarios'));
 const Estadisticas    = lazy(() => import('../estadisticas/Estadisticas'));
 const ControlStock    = lazy(() => import('../stock/ControlStock'));
+const FlujoStock      = lazy(() => import('../flujo-stock/FlujoStock'));
 const Configuracion   = lazy(() => import('../configuracion/Configuracion'));
 import './Dashboard.css';
 import { api } from '../../core/api';
 import { CgArrowsExchange } from 'react-icons/cg';
-import { FiShoppingCart, FiSliders, FiX, FiPlus, FiCheck } from 'react-icons/fi';
+import { FiShoppingCart, FiSliders, FiX, FiPlus, FiCheck, FiTrendingUp } from 'react-icons/fi';
 import { RiSettings3Line } from 'react-icons/ri';
 import { APP_VERSION } from '../../core/version';
 import AppButton from '../../shared/components/button/AppButton';
@@ -521,6 +522,7 @@ const OPCIONES = [
   { key: 'auditoria', label: 'Auditoría', topbarTitle: 'Auditoría y movimientos de stock', icon: '/auditory.svg' },
   { key: 'control-stock', label: 'Control de stock', topbarTitle: 'Control de stock', icon: 'stock-control' },
   { key: 'estadisticas', label: 'Estadísticas', topbarTitle: 'Estadísticas comerciales', icon: '/stats.svg' },
+  { key: 'flujo-stock', label: 'Flujo de Stock', topbarTitle: 'Flujo de Stock', icon: 'flujo-stock' },
   { key: 'configuracion', label: 'Configuración', topbarTitle: 'Configuración del sistema', icon: 'configuracion' },
 ];
 
@@ -586,6 +588,7 @@ function DashboardInner({ user, pantalla, productos, setProductos, onNavigate, o
     if (op.key === 'mi-usuario' && can('usuarios', 'ver')) return false; // si puede ver usuarios, no necesita "mi usuario"
     if (op.key === 'control-stock' && !can('stock', 'ver')) return false;
     if (op.key === 'estadisticas' && !can('estadisticas', 'ver')) return false;
+    if (op.key === 'flujo-stock' && !can('flujo-stock', 'ver')) return false;
     if (op.key === 'auditoria' && !can('auditoria', 'ver')) return false;
     if (op.key === 'configuracion' && !can('configuracion', 'ver')) return false;
 
@@ -689,6 +692,10 @@ function DashboardInner({ user, pantalla, productos, setProductos, onNavigate, o
             )
             : <Placeholder titulo="Acceso restringido" icon="X" />;
         case 'estadisticas': return <Estadisticas />;
+        case 'flujo-stock':
+          return can('flujo-stock', 'ver')
+            ? <FlujoStock productos={productos} />
+            : <Placeholder titulo="Acceso restringido" icon="🔒" />;
         case 'configuracion':
           return (esPropietario || can('configuracion', 'ver')) ? <Configuracion /> : <Placeholder titulo="Acceso restringido" icon="🔒" />;
         default:             return null;
@@ -750,6 +757,8 @@ function DashboardInner({ user, pantalla, productos, setProductos, onNavigate, o
             >
               {icon === 'stock-control'
                 ? <CgArrowsExchange className="nav-icon-svg" aria-hidden="true" />
+                : icon === 'flujo-stock'
+                ? <FiTrendingUp className="nav-icon-svg" aria-hidden="true" />
                 : icon === 'configuracion'
                 ? <RiSettings3Line className="nav-icon-svg" aria-hidden="true" />
                 : <img src={icon} alt="" className="nav-icon-img" aria-hidden="true" />}

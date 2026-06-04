@@ -605,7 +605,8 @@ const statements = [
     ('auditoria',     'Auditoría',        true, true,  6),
     ('control-stock', 'Control de stock', true, true,  7),
     ('estadisticas',  'Estadísticas',     true, true,  8),
-    ('configuracion', 'Configuración',    true, true,  9)
+    ('flujo-stock',   'Flujo de Stock',   true, true,  9),
+    ('configuracion', 'Configuración',    true, true,  10)
   ON CONFLICT (codigo) DO NOTHING;
   `,
   // === ROLES Y PERMISOS ===
@@ -628,6 +629,7 @@ const statements = [
     ('propietario','ventas','ver',true),
     ('propietario','ventas','ver_todas',true),
     ('propietario','ventas','eliminar',true),
+    ('propietario','ventas','eliminar_todas',true),
     ('propietario','ventas','exportar',true),
     ('propietario','productos','ver',true),
     ('propietario','productos','agregar',true),
@@ -653,6 +655,7 @@ const statements = [
     ('propietario','estadisticas','exportar',true),
     ('propietario','stock','ver',true),
     ('propietario','stock','editar',true),
+    ('propietario','flujo-stock','ver',true),
     ('propietario','auditoria','ver',true),
     ('propietario','auditoria','exportar',true),
     ('propietario','configuracion','ver',true),
@@ -660,6 +663,7 @@ const statements = [
     ('vendedor','ventas','ver',true),
     ('vendedor','ventas','ver_todas',false),
     ('vendedor','ventas','eliminar',false),
+    ('vendedor','ventas','eliminar_todas',false),
     ('vendedor','ventas','exportar',false),
     ('vendedor','productos','ver',true),
     ('vendedor','productos','agregar',false),
@@ -685,6 +689,7 @@ const statements = [
     ('vendedor','estadisticas','exportar',false),
     ('vendedor','stock','ver',false),
     ('vendedor','stock','editar',false),
+    ('vendedor','flujo-stock','ver',false),
     ('vendedor','auditoria','ver',false),
     ('vendedor','auditoria','exportar',false),
     ('vendedor','configuracion','ver',false)

@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 .env
 backend/.env
+
+# Archivos de propiedades por empresa (sensibles - no al repo)
+props/prop-*.properties
+!props/prop-example.properties

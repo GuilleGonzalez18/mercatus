@@ -117,19 +117,35 @@ async function canViewEmpresaStats(authUser) {
   return hasPermission(authUser, 'estadisticas', 'ver_empresa');
 }
 
-async function canAccessVenta(authUser, ventaId) {
+// Acceso a una venta puntual. `scopeAccion` es el permiso que, si está habilitado,
+// permite operar ventas de OTROS usuarios (no solo las propias):
+//   - 'ver_todas'      → lectura / impresión / envío de cualquier venta
+//   - 'eliminar_todas' → cancelar / eliminar cualquier venta
+// Sin ese permiso (y sin ser propietario) el usuario solo accede a sus propias ventas.
+async function canAccessVentaScoped(authUser, ventaId, scopeAccion) {
   if (isPropietario(authUser)) return true;
 
+  const verTodas = await hasPermission(authUser, 'ventas', scopeAccion);
   const result = await pool.query(
     `SELECT 1
      FROM public.ventas
      WHERE id = $1
-       AND usuario_id = $2
        AND COALESCE(eliminada, false) = false
+       ${verTodas ? '' : 'AND usuario_id = $2'}
      LIMIT 1`,
-    [ventaId, Number(authUser.id)]
+    verTodas ? [ventaId] : [ventaId, Number(authUser.id)]
   );
   return result.rowCount > 0;
+}
+
+// Lectura / impresión / envío: honra 'ventas.ver_todas'.
+function canAccessVentaRead(authUser, ventaId) {
+  return canAccessVentaScoped(authUser, ventaId, 'ver_todas');
+}
+
+// Cancelar / eliminar: honra 'ventas.eliminar_todas'.
+function canAccessVentaManage(authUser, ventaId) {
+  return canAccessVentaScoped(authUser, ventaId, 'eliminar_todas');
 }
 
 function calcGrowthPercent(currentValue, previousValue) {
@@ -1362,7 +1378,7 @@ ventasRouter.get('/:id', requirePermission('ventas', 'ver'), async (req, res) =>
     return res.status(400).json({ error: 'Id de venta inválido' });
   }
 
-  if (!(await canAccessVenta(authUser, ventaId))) {
+  if (!(await canAccessVentaRead(authUser, ventaId))) {
     return res.status(404).json({ error: 'Venta no encontrada' });
   }
 
@@ -1688,7 +1704,7 @@ ventasRouter.put('/:id/entregado', requirePermission('ventas', 'ver'), async (re
     return res.status(400).json({ error: 'El campo entregado debe ser booleano' });
   }
 
-  if (!(await canAccessVenta(authUser, ventaId))) {
+  if (!(await canAccessVentaRead(authUser, ventaId))) {
     return res.status(404).json({ error: 'Venta no encontrada' });
   }
 
@@ -1739,7 +1755,7 @@ ventasRouter.patch('/:id/cfe_enviado', requirePermission('ventas', 'editar'), as
     return res.status(400).json({ error: 'El campo cfe_enviado debe ser booleano' });
   }
 
-  if (!(await canAccessVenta(authUser, ventaId))) {
+  if (!(await canAccessVentaRead(authUser, ventaId))) {
     return res.status(404).json({ error: 'Venta no encontrada' });
   }
 
@@ -1788,7 +1804,7 @@ ventasRouter.post('/:id/enviar-email', requirePermission('ventas', 'ver'), async
   if (!Number.isInteger(ventaId) || ventaId <= 0) {
     return res.status(400).json({ error: 'Id de venta inválido' });
   }
-  if (!(await canAccessVenta(authUser, ventaId))) {
+  if (!(await canAccessVentaRead(authUser, ventaId))) {
     return res.status(404).json({ error: 'Venta no encontrada' });
   }
 
@@ -1879,7 +1895,7 @@ ventasRouter.put('/:id/cancelar', requirePermission('ventas', 'eliminar'), async
     return res.status(400).json({ error: 'Id de venta inválido' });
   }
 
-  if (!(await canAccessVenta(authUser, ventaId))) {
+  if (!(await canAccessVentaManage(authUser, ventaId))) {
     return res.status(404).json({ error: 'Venta no encontrada' });
   }
 
@@ -1951,7 +1967,7 @@ ventasRouter.delete('/:id', requirePermission('ventas', 'eliminar'), async (req,
     return res.status(400).json({ error: 'Id de venta inválido' });
   }
 
-  if (!(await canAccessVenta(authUser, ventaId))) {
+  if (!(await canAccessVentaManage(authUser, ventaId))) {
     return res.status(404).json({ error: 'Venta no encontrada' });
   }
 
@@ -2024,7 +2040,7 @@ ventasRouter.get('/:id/cfe', async (req, res) => {
 
   const ventaId = Number(req.params.id);
   if (!Number.isFinite(ventaId)) return res.status(400).json({ error: 'ID inválido' });
-  if (!(await canAccessVenta(authUser, ventaId))) {
+  if (!(await canAccessVentaRead(authUser, ventaId))) {
     return res.status(404).json({ error: 'Venta no encontrada' });
   }
 
@@ -2047,7 +2063,7 @@ ventasRouter.post('/:id/cfe/enviar', async (req, res) => {
   const authUser = req.authUser ?? getAuthUserFromRequest(req);
   const ventaId = Number(req.params.id);
   if (!Number.isFinite(ventaId)) return res.status(400).json({ error: 'ID inválido' });
-  if (!(await canAccessVenta(authUser, ventaId))) {
+  if (!(await canAccessVentaRead(authUser, ventaId))) {
     return res.status(404).json({ error: 'Venta no encontrada' });
   }
 
