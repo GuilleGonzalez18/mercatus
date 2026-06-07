@@ -1323,7 +1323,7 @@ const RECURSOS = [
   { key: 'usuarios',    label: 'Usuarios',      acciones: ['ver', 'agregar', 'editar', 'eliminar'] },
   { key: 'estadisticas',label: 'Estadísticas',  acciones: ['ver', 'ver_empresa', 'ver_por_usuario', 'exportar'] },
   { key: 'flujo-stock', label: 'Flujo de Stock', acciones: ['ver'] },
-  { key: 'stock',       label: 'Stock',         acciones: ['ver', 'editar'] },
+  { key: 'stock',       label: 'Control de Stock', acciones: ['ver', 'editar'] },
   { key: 'auditoria',   label: 'Auditoría',     acciones: ['ver', 'exportar'] },
   { key: 'configuracion',label:'Configuración', acciones: ['ver'] },
 ];
