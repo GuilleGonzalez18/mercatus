@@ -7,13 +7,12 @@ const Clientes        = lazy(() => import('../clientes/Clientes'));
 const Auditoria       = lazy(() => import('../auditoria/Auditoria'));
 const Usuarios        = lazy(() => import('../usuarios/Usuarios'));
 const Estadisticas    = lazy(() => import('../estadisticas/Estadisticas'));
-const ControlStock    = lazy(() => import('../stock/ControlStock'));
-const FlujoStock      = lazy(() => import('../flujo-stock/FlujoStock'));
+const Stock           = lazy(() => import('../stock/Stock'));
 const Configuracion   = lazy(() => import('../configuracion/Configuracion'));
 import './Dashboard.css';
 import { api } from '../../core/api';
 import { CgArrowsExchange } from 'react-icons/cg';
-import { FiShoppingCart, FiSliders, FiX, FiPlus, FiCheck, FiTrendingUp } from 'react-icons/fi';
+import { FiShoppingCart, FiSliders, FiX, FiPlus, FiCheck } from 'react-icons/fi';
 import { RiSettings3Line } from 'react-icons/ri';
 import { APP_VERSION } from '../../core/version';
 import AppButton from '../../shared/components/button/AppButton';
@@ -520,9 +519,8 @@ const OPCIONES = [
   { key: 'usuarios', label: 'Usuarios', topbarTitle: 'Usuarios del sistema', icon: '/user.svg' },
   { key: 'mi-usuario', label: 'Mi usuario', topbarTitle: 'Mi usuario', icon: '/user.svg' },
   { key: 'auditoria', label: 'Auditoría', topbarTitle: 'Auditoría y movimientos de stock', icon: '/auditory.svg' },
-  { key: 'control-stock', label: 'Control de stock', topbarTitle: 'Control de stock', icon: 'stock-control' },
+  { key: 'stock', label: 'Stock', topbarTitle: 'Stock', icon: 'stock-control' },
   { key: 'estadisticas', label: 'Estadísticas', topbarTitle: 'Estadísticas comerciales', icon: '/stats.svg' },
-  { key: 'flujo-stock', label: 'Flujo de Stock', topbarTitle: 'Flujo de Stock', icon: 'flujo-stock' },
   { key: 'configuracion', label: 'Configuración', topbarTitle: 'Configuración del sistema', icon: 'configuracion' },
 ];
 
@@ -586,9 +584,17 @@ function DashboardInner({ user, pantalla, productos, setProductos, onNavigate, o
     if (op.key === 'usuarios' && !can('usuarios', 'ver')) return false;
     if (op.key === 'mi-usuario' && esPropietario) return false;
     if (op.key === 'mi-usuario' && can('usuarios', 'ver')) return false; // si puede ver usuarios, no necesita "mi usuario"
-    if (op.key === 'control-stock' && !can('stock', 'ver')) return false;
+    if (op.key === 'stock') {
+      const moduloOn = (codigo) => {
+        if (!modulos || modulos.length === 0) return true;
+        const m = modulos.find((x) => x.codigo === codigo);
+        return m ? m.habilitado : true;
+      };
+      const verControl = can('stock', 'ver') && moduloOn('control-stock');
+      const verFlujo = can('flujo-stock', 'ver') && moduloOn('flujo-stock');
+      if (!verControl && !verFlujo) return false;
+    }
     if (op.key === 'estadisticas' && !can('estadisticas', 'ver')) return false;
-    if (op.key === 'flujo-stock' && !can('flujo-stock', 'ver')) return false;
     if (op.key === 'auditoria' && !can('auditoria', 'ver')) return false;
     if (op.key === 'configuracion' && !can('configuracion', 'ver')) return false;
 
@@ -658,7 +664,9 @@ function DashboardInner({ user, pantalla, productos, setProductos, onNavigate, o
     return () => window.removeEventListener('mercatus:stats-refresh', onStatsRefresh);
   }, []);
 
-  const tituloActual= OPCIONES.find((o) => o.key === pantalla)?.topbarTitle ?? 'Dashboard';
+  // Alias legacy → 'stock' para resaltar el menú y mostrar el título correctos
+  const pantallaKey = (pantalla === 'control-stock' || pantalla === 'flujo-stock') ? 'stock' : pantalla;
+  const tituloActual= OPCIONES.find((o) => o.key === pantallaKey)?.topbarTitle ?? 'Dashboard';
   const esPantallaDashboard = !pantalla;
   const dashboardGreeting = user?.nombre || user?.username || 'Equipo';
   const contenidoPantalla = useMemo(
@@ -682,20 +690,18 @@ function DashboardInner({ user, pantalla, productos, setProductos, onNavigate, o
         case 'mi-usuario':   return <MiUsuarioView user={user} />;
         case 'auditoria':
           return <Auditoria />;
+        // 'control-stock' y 'flujo-stock' son alias legacy (localStorage previo a la fusión)
         case 'control-stock':
-          return can('stock', 'ver')
-            ? (
-              <ControlStock
-                productos={productos}
-                setProductos={setProductos}
-              />
-            )
-            : <Placeholder titulo="Acceso restringido" icon="X" />;
-        case 'estadisticas': return <Estadisticas />;
         case 'flujo-stock':
-          return can('flujo-stock', 'ver')
-            ? <FlujoStock productos={productos} />
-            : <Placeholder titulo="Acceso restringido" icon="🔒" />;
+        case 'stock':
+          return (
+            <Stock
+              productos={productos}
+              setProductos={setProductos}
+              initialTab={pantalla === 'flujo-stock' ? 'flujo' : 'control'}
+            />
+          );
+        case 'estadisticas': return <Estadisticas />;
         case 'configuracion':
           return (esPropietario || can('configuracion', 'ver')) ? <Configuracion /> : <Placeholder titulo="Acceso restringido" icon="🔒" />;
         default:             return null;
@@ -752,13 +758,11 @@ function DashboardInner({ user, pantalla, productos, setProductos, onNavigate, o
               id={`dashboard-nav-${toButtonIdPart(key)}`}
               key={key}
               type="button"
-              className={pantalla === key ? 'active' : ''}
+              className={pantallaKey === key ? 'active' : ''}
               onClick={() => handleNavigate(key)}
             >
               {icon === 'stock-control'
                 ? <CgArrowsExchange className="nav-icon-svg" aria-hidden="true" />
-                : icon === 'flujo-stock'
-                ? <FiTrendingUp className="nav-icon-svg" aria-hidden="true" />
                 : icon === 'configuracion'
                 ? <RiSettings3Line className="nav-icon-svg" aria-hidden="true" />
                 : <img src={icon} alt="" className="nav-icon-img" aria-hidden="true" />}
