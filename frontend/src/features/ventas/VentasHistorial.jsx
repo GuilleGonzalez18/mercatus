@@ -206,6 +206,10 @@ export default function VentasHistorial() {
   const [modalTipoImpresionVentaId, setModalTipoImpresionVentaId] = useState(null);
   const [entregasDesde, setEntregasDesde] = useState(todayISO());
   const [entregasHasta, setEntregasHasta] = useState(todayISO());
+  const [modalConsolidadoOpen, setModalConsolidadoOpen] = useState(false);
+  const [exportingConsolidado, setExportingConsolidado] = useState(false);
+  const [consolidadoDesde, setConsolidadoDesde] = useState(todayISO());
+  const [consolidadoHasta, setConsolidadoHasta] = useState(todayISO());
   const [cfeModalData, setCfeModalData] = useState(null);
   const [loadingCfeId, setLoadingCfeId] = useState(null);
   const [enviandoCFE, setEnviandoCFE] = useState(false);
@@ -1360,6 +1364,212 @@ export default function VentasHistorial() {
     }
   };
 
+  const construirConsolidado = async () => {
+    if (!consolidadoDesde || !consolidadoHasta) {
+      throw new Error('Debes seleccionar "Desde" y "Hasta" para generar el consolidado.');
+    }
+    if (consolidadoDesde > consolidadoHasta) {
+      throw new Error('La fecha "Desde" no puede ser mayor que "Hasta".');
+    }
+    return api.getEntregasConsolidado({ desde: consolidadoDesde, hasta: consolidadoHasta });
+  };
+
+  const exportarConsolidadoPDF = async () => {
+    setExportingConsolidado(true);
+    try {
+      const resumen = await construirConsolidado();
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let cursorY = 12;
+      const periodoLabel = resumen.desde === resumen.hasta ? `Día ${resumen.desde}` : `${resumen.desde} al ${resumen.hasta}`;
+
+      try {
+        const logo = await loadLogoForPdf(empresa.logo_base64, '#ffffff');
+        if (logo) {
+          const maxW = 60;
+          const maxH = 20;
+          const nw = logo.naturalWidth || maxW;
+          const nh = logo.naturalHeight || maxH;
+          const scale = Math.min(maxW / nw, maxH / nh);
+          const logoWidth = nw * scale;
+          const logoHeight = nh * scale;
+          const x = (pageWidth - logoWidth) / 2;
+          doc.addImage(logo.dataUrl, 'JPEG', x, cursorY, logoWidth, logoHeight);
+          cursorY += logoHeight + 6;
+        }
+      } catch {
+        cursorY += 2;
+      }
+
+      doc.setFontSize(14);
+      doc.text('Consolidado de artículos', pageWidth / 2, cursorY, { align: 'center' });
+      cursorY += 6;
+      doc.setFontSize(10);
+      doc.text(`Período: ${periodoLabel}`, 14, cursorY);
+      cursorY += 5;
+      doc.text(`Artículos: ${Number(resumen.totalArticulos || 0).toLocaleString('es-UY')}`, 14, cursorY);
+      doc.text(`Unidades totales: ${Number(resumen.totalUnidades || 0).toLocaleString('es-UY')}`, 80, cursorY);
+      cursorY += 7;
+
+      autoTable(doc, {
+        startY: cursorY,
+        head: [['ARTÍCULO', 'CANTIDAD']],
+        body: (resumen.articulos || []).map((a) => [
+          a.nombre,
+          Number(a.total_unidades || 0).toLocaleString('es-UY'),
+        ]),
+        styles: { fontSize: 10, valign: 'middle', cellPadding: 3 },
+        headStyles: { fillColor: getPrimaryRgb() },
+        columnStyles: {
+          0: { cellWidth: 'auto' },
+          1: { cellWidth: 40, halign: 'right' },
+        },
+      });
+
+      const suffix = `${resumen.desde || 'desde'}_${resumen.hasta || 'hasta'}`;
+      doc.save(`consolidado-articulos-${suffix}.pdf`);
+      setModalConsolidadoOpen(false);
+    } catch (err) {
+      await appAlert(err.message || 'No se pudo exportar el PDF del consolidado.');
+    } finally {
+      setExportingConsolidado(false);
+    }
+  };
+
+  const exportarConsolidadoExcel = async () => {
+    setExportingConsolidado(true);
+    try {
+      const resumen = await construirConsolidado();
+      const periodoLabel = resumen.desde === resumen.hasta ? `Día ${resumen.desde}` : `${resumen.desde} al ${resumen.hasta}`;
+      const rowsHtml = (resumen.articulos || [])
+        .map((a, idx) => {
+          const zebra = idx % 2 === 0 ? '#f7faff' : '#ffffff';
+          return `
+            <tr style="background:${zebra}">
+              <td class="td">${escapeHtml(a.nombre)}</td>
+              <td class="td right" x:num="${Number(a.total_unidades || 0)}">${Number(a.total_unidades || 0)}</td>
+            </tr>
+          `;
+        })
+        .join('');
+
+      const html = `
+        <html xmlns:x="urn:schemas-microsoft-com:office:excel">
+          <head>
+            <meta charset="UTF-8" />
+            <style>
+              body { font-family: ${PRINT_FONT_FAMILY_CSS}; }
+              .title { font-size: 18px; font-weight: 700; color: #375f8c; margin-bottom: 8px; }
+              .meta { font-size: 13px; margin-bottom: 4px; color: #1f2933; }
+              table { border-collapse: collapse; width: 100%; table-layout: fixed; margin-top: 10px; }
+              .th, .td { border: 1px solid #c8d3e5; padding: 7px 8px; font-size: 12px; color: #1f2933; vertical-align: middle; }
+              .th { background: #375f8c; color: #ffffff; font-weight: 700; text-align: center; }
+              .right { text-align: right; }
+              .total-row td { border: 1px solid #375f8c; font-weight: 700; color: #375f8c; background: #eef4fb; }
+            </style>
+          </head>
+          <body>
+            <div class="title">Consolidado de artículos</div>
+            <div class="meta">Período: ${escapeHtml(periodoLabel)}</div>
+            <div class="meta">Artículos: ${escapeHtml(Number(resumen.totalArticulos || 0))} &nbsp;&nbsp;|&nbsp;&nbsp; Unidades totales: ${escapeHtml(Number(resumen.totalUnidades || 0))}</div>
+            <table>
+              <colgroup>
+                <col style="width:78%">
+                <col style="width:22%">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th class="th">ARTÍCULO</th>
+                  <th class="th">CANTIDAD</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+                <tr class="total-row">
+                  <td>TOTAL UNIDADES</td>
+                  <td class="right" x:num="${Number(resumen.totalUnidades || 0)}">${Number(resumen.totalUnidades || 0)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+
+      const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const suffix = `${resumen.desde || 'desde'}_${resumen.hasta || 'hasta'}`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `consolidado-articulos-${suffix}.xls`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setModalConsolidadoOpen(false);
+    } catch (err) {
+      await appAlert(err.message || 'No se pudo exportar Excel del consolidado.');
+    } finally {
+      setExportingConsolidado(false);
+    }
+  };
+
+  const imprimirConsolidado = async () => {
+    setExportingConsolidado(true);
+    try {
+      const resumen = await construirConsolidado();
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const periodoLabel = resumen.desde === resumen.hasta ? `Día ${resumen.desde}` : `${resumen.desde} al ${resumen.hasta}`;
+      doc.setFontSize(14);
+      doc.text('Consolidado de artículos', pageWidth / 2, 14, { align: 'center' });
+      doc.setFontSize(10);
+      doc.text(`Período: ${periodoLabel}`, 14, 22);
+      doc.text(`Unidades totales: ${Number(resumen.totalUnidades || 0).toLocaleString('es-UY')}`, 14, 27);
+      autoTable(doc, {
+        startY: 32,
+        head: [['ARTÍCULO', 'CANTIDAD']],
+        body: (resumen.articulos || []).map((a) => [
+          a.nombre,
+          Number(a.total_unidades || 0).toLocaleString('es-UY'),
+        ]),
+        styles: { fontSize: 10, valign: 'middle' },
+        headStyles: { fillColor: getPrimaryRgb() },
+        columnStyles: {
+          0: { cellWidth: 'auto' },
+          1: { cellWidth: 40, halign: 'right' },
+        },
+      });
+      const blob = doc.output('blob');
+      const blobUrl = URL.createObjectURL(blob);
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.src = blobUrl;
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch {
+          window.open(blobUrl, '_blank', 'noopener,noreferrer');
+        }
+      };
+      document.body.appendChild(iframe);
+      setTimeout(() => {
+        URL.revokeObjectURL(blobUrl);
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      }, 7000);
+      setModalConsolidadoOpen(false);
+    } catch (err) {
+      await appAlert(err.message || 'No se pudo preparar impresión del consolidado.');
+    } finally {
+      setExportingConsolidado(false);
+    }
+  };
+
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const processTicketsQueue = async (mode) => {
@@ -1808,6 +2018,21 @@ export default function VentasHistorial() {
             <PiFilePdfBold />
             <span className="btn-label">{exportingEntregas ? 'Procesando...' : 'Imprimir entregas'}</span>
           </AppButton>
+          <AppButton
+            type="button"
+            className="ventas-export-btn"
+            onClick={() => {
+              const t = todayISO();
+              setConsolidadoDesde(t);
+              setConsolidadoHasta(t);
+              setModalConsolidadoOpen(true);
+            }}
+            disabled={exportingConsolidado}
+            title="Consolidado de artículos para entregas"
+          >
+            <PiFilePdfBold />
+            <span className="btn-label">{exportingConsolidado ? 'Procesando...' : 'Consolidado de artículos'}</span>
+          </AppButton>
           {cfeHabilitado && (
             <AppButton
               type="button"
@@ -2039,6 +2264,98 @@ export default function VentasHistorial() {
               className="export-modal-close"
               onClick={() => setModalExportOpen(false)}
               disabled={exportingEntregas}
+            >
+              Cerrar
+            </AppButton>
+          </div>
+        </div>
+      )}
+
+      {modalConsolidadoOpen && (
+        <div className="export-modal-overlay" role="dialog" aria-modal="true">
+          <div className="export-modal-backdrop" onClick={() => !exportingConsolidado && setModalConsolidadoOpen(false)} />
+          <div className="export-modal">
+            <h4>Consolidado de artículos</h4>
+            <p>Suma de unidades necesarias para las entregas pendientes del período.</p>
+            <div className="tickets-presets-row">
+              <AppButton
+                type="button"
+                className="ticket-preset-btn"
+                onClick={() => {
+                  const t = todayISO();
+                  setConsolidadoDesde(t);
+                  setConsolidadoHasta(t);
+                }}
+                disabled={exportingConsolidado}
+              >
+                Hoy
+              </AppButton>
+              <AppButton
+                type="button"
+                className="ticket-preset-btn"
+                onClick={() => {
+                  const t = tomorrowISO();
+                  setConsolidadoDesde(t);
+                  setConsolidadoHasta(t);
+                }}
+                disabled={exportingConsolidado}
+              >
+                Mañana
+              </AppButton>
+              <AppButton
+                type="button"
+                className="ticket-preset-btn"
+                onClick={() => {
+                  const r = weekRangeISO();
+                  setConsolidadoDesde(r.desde);
+                  setConsolidadoHasta(r.hasta);
+                }}
+                disabled={exportingConsolidado}
+              >
+                Esta semana
+              </AppButton>
+              <AppButton
+                type="button"
+                className="ticket-preset-btn"
+                onClick={() => {
+                  const r = monthRangeISO();
+                  setConsolidadoDesde(r.desde);
+                  setConsolidadoHasta(r.hasta);
+                }}
+                disabled={exportingConsolidado}
+              >
+                Este mes
+              </AppButton>
+            </div>
+            <div className="tickets-range-row">
+              <label className="ventas-fecha-filter">
+                <span>Desde</span>
+                <AppInput type="date" value={consolidadoDesde} onChange={(e) => setConsolidadoDesde(e.target.value)} />
+              </label>
+              <label className="ventas-fecha-filter">
+                <span>Hasta</span>
+                <AppInput type="date" value={consolidadoHasta} onChange={(e) => setConsolidadoHasta(e.target.value)} />
+              </label>
+            </div>
+            <div className="export-modal-actions">
+              <AppButton type="button" onClick={exportarConsolidadoPDF} disabled={exportingConsolidado}>
+                <PiFilePdfBold />
+                <span>PDF</span>
+              </AppButton>
+              <AppButton type="button" onClick={exportarConsolidadoExcel} disabled={exportingConsolidado}>
+                <RiFileExcel2Line />
+                <span>EXCEL</span>
+              </AppButton>
+              <AppButton type="button" onClick={imprimirConsolidado} disabled={exportingConsolidado}>
+                <AiFillPrinter />
+                <span>Impresora</span>
+              </AppButton>
+            </div>
+            <AppButton
+              type="button"
+              className="export-modal-close"
+              onClick={() => setModalConsolidadoOpen(false)}
+              disabled={exportingConsolidado}
             >
               Cerrar
             </AppButton>

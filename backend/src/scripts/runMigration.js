@@ -953,6 +953,8 @@ const statements = [
   // === SOFT DELETE EN CLIENTES (v23) ===
   `ALTER TABLE public.clientes ADD COLUMN IF NOT EXISTS eliminado boolean NOT NULL DEFAULT false;`,
   `CREATE INDEX IF NOT EXISTS ix_clientes_eliminado ON public.clientes (eliminado);`,
+  // === DESCARGA AUTOMÁTICA DE PDFs AL FINALIZAR VENTA (v24) ===
+  `ALTER TABLE public.config_empresa ADD COLUMN IF NOT EXISTS descarga_automatica_pdf boolean NOT NULL DEFAULT false;`,
 ];
 
 export async function runMigration() {

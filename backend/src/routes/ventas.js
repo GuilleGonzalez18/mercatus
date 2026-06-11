@@ -1197,6 +1197,67 @@ ventasRouter.get('/entregas/resumen', requirePermission('ventas', 'ver'), async 
   });
 });
 
+// ── GET /ventas/entregas/consolidado — suma de unidades por producto para entregas pendientes ──
+// Lista consolidada de necesidades de carga: agrupa por producto y suma cantidades de todas las
+// ventas con entrega pendiente en el rango. NO depende del stock registrado.
+ventasRouter.get('/entregas/consolidado', requirePermission('ventas', 'ver'), async (req, res) => {
+  const authUser = req.authUser ?? getAuthUserFromRequest(req);
+
+  const desde = req.query.desde ? String(req.query.desde) : null;
+  const hasta = req.query.hasta ? String(req.query.hasta) : null;
+  if (!desde || !hasta) {
+    return res.status(400).json({ error: 'Debes indicar "desde" y "hasta" (YYYY-MM-DD).' });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
+    return res.status(400).json({ error: 'Formato de fecha inválido. Usa YYYY-MM-DD' });
+  }
+  if (desde > hasta) {
+    return res.status(400).json({ error: 'La fecha "desde" no puede ser mayor que "hasta"' });
+  }
+
+  // Misma visibilidad que /entregas/resumen: no-propietario solo ve sus propias ventas.
+  const esPropietario = isPropietario(authUser);
+  const params = [desde, hasta];
+  const userFilter = esPropietario ? '' : 'AND v.usuario_id = $3';
+  if (!esPropietario) params.push(Number(authUser.id));
+
+  const { rows } = await pool.query(
+    `SELECT
+       vd.producto_id,
+       COALESCE(p.nombre, 'Producto') AS nombre,
+       p.ean,
+       SUM(vd.cantidad)::int AS total_unidades
+     FROM public.ventas v
+     JOIN public.venta_detalle vd ON vd.venta_id = v.id
+     LEFT JOIN public.productos p ON p.id = vd.producto_id
+     WHERE ${ACTIVE_SALES_CONDITION}
+       AND COALESCE(v.estado_entrega, CASE WHEN v.entregado THEN 'entregado' ELSE 'pendiente' END) <> 'entregado'
+       AND v.fecha_entrega IS NOT NULL
+       AND DATE(v.fecha_entrega) BETWEEN $1::date AND $2::date
+       ${userFilter}
+     GROUP BY vd.producto_id, p.nombre, p.ean
+     HAVING SUM(vd.cantidad) > 0
+     ORDER BY total_unidades DESC, nombre ASC`,
+    params
+  );
+
+  const articulos = rows.map((r) => ({
+    producto_id: r.producto_id != null ? Number(r.producto_id) : null,
+    nombre: r.nombre || 'Producto',
+    ean: r.ean || '',
+    total_unidades: Number(r.total_unidades || 0),
+  }));
+  const totalUnidades = articulos.reduce((acc, a) => acc + a.total_unidades, 0);
+
+  return res.json({
+    desde,
+    hasta,
+    totalArticulos: articulos.length,
+    totalUnidades,
+    articulos,
+  });
+});
+
 // ── GET /ventas/buscar — búsqueda full-text por cliente, vendedor, producto o ID ──
 ventasRouter.get('/buscar', requirePermission('ventas', 'ver'), async (req, res) => {
   const q = String(req.query.q || '').trim();

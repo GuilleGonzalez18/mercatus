@@ -1315,6 +1315,24 @@ export default function Ventas({
     setTicketImpreso(true);
   };
 
+  // Descarga automática del PDF del ticket al finalizar la venta, solo si la empresa
+  // tiene activada la descarga automática. Si está inactiva, el usuario descarga manual
+  // desde los botones de la pantalla final. El ref evita descargas repetidas por re-render;
+  // el ref a la función mantiene el efecto sin depender de una función recreada en cada render.
+  const autoTicketDescargadoRef = useRef(false);
+  const descargarTicketPdfRef = useRef(descargarTicketPdf);
+  descargarTicketPdfRef.current = descargarTicketPdf;
+  useEffect(() => {
+    if (!ventaFinalizada) {
+      autoTicketDescargadoRef.current = false;
+      return;
+    }
+    if (empresa?.descarga_automatica_pdf !== true) return;
+    if (autoTicketDescargadoRef.current) return;
+    autoTicketDescargadoRef.current = true;
+    descargarTicketPdfRef.current().catch(() => {});
+  }, [ventaFinalizada, empresa]);
+
   const descargarCfeAnotado = async (ventaId) => {
     const text = await api.getVentaCFEAnnotated(ventaId);
     const blob = new Blob([text], { type: 'text/plain' });
@@ -1541,8 +1559,9 @@ export default function Ventas({
       setSelectorClienteAbierto(false);
       setBusquedaCliente('');
 
-      // Descargar JSON CFE automáticamente (con comentarios JSONC)
-      if (ventaCreada?.id) {
+      // Descargar JSON CFE automáticamente (con comentarios JSONC) — solo si la empresa
+      // tiene activada la descarga automática de PDFs al finalizar la venta.
+      if (ventaCreada?.id && empresa?.descarga_automatica_pdf === true) {
         descargarCfeAnotado(ventaCreada.id)
           .catch(() => {}); // silencioso, no interrumpe el flujo
       }
