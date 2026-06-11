@@ -1952,6 +1952,11 @@
   filter: brightness(0) invert(1);
 }
 
+.venta-final-actions button svg {
+  width: 18px;
+  height: 18px;
+}
+
 .venta-final-actions .secundario {
   background: #8090a4;
 }

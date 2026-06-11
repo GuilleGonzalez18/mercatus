@@ -8,10 +8,11 @@ import './VentasHistorial.css';
 import { FilterSlot } from '../../shared/lib/filterPanel';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { RiFileExcel2Line, RiSendPlaneFill } from 'react-icons/ri';
-import { PiFilePdfBold } from 'react-icons/pi';
-import { AiFillPrinter } from 'react-icons/ai';
-import { FaReplyAll } from 'react-icons/fa6';
+import { FaBoxesStacked } from 'react-icons/fa6';
+import {
+  TbTruckDelivery, TbClipboardList, TbStack2,
+  TbFileTypePdf, TbPrinter, TbFileSpreadsheet, TbReplace, TbSend,
+} from 'react-icons/tb';
 import { appAlert, appConfirm } from '../../shared/lib/appDialog';
 import { formatHorarioCliente } from '../../shared/lib/horarios';
 import AppTable from '../../shared/components/table/AppTable';
@@ -1802,7 +1803,7 @@ export default function VentasHistorial() {
             title="Replicar venta"
             aria-label="Replicar venta"
           >
-            <FaReplyAll aria-hidden="true" />
+            <TbReplace aria-hidden="true" />
             <small>Replicar</small>
           </AppButton>
           <AppButton
@@ -1813,7 +1814,7 @@ export default function VentasHistorial() {
             title="Reenviar factura"
             aria-label="Reenviar factura"
           >
-            <img src="/send.svg" alt="" aria-hidden="true" />
+            <TbSend aria-hidden="true" />
             <small>Reenviar</small>
           </AppButton>
           <AppButton
@@ -1824,7 +1825,7 @@ export default function VentasHistorial() {
             title="Reimprimir ticket"
             aria-label="Reimprimir ticket"
           >
-            <img src="/print.svg" alt="" aria-hidden="true" />
+            <TbPrinter aria-hidden="true" />
             <small>Imprimir</small>
           </AppButton>
           <AppButton
@@ -2000,7 +2001,7 @@ export default function VentasHistorial() {
             disabled={printingBatch || loading}
             title="Tickets para entrega"
           >
-            <AiFillPrinter />
+            <TbTruckDelivery />
             {printingBatch ? 'Procesando tickets...' : 'Tickets para entrega + Remito'}
           </AppButton>
           <AppButton
@@ -2015,7 +2016,7 @@ export default function VentasHistorial() {
             disabled={exportingEntregas}
             title="Imprimir entregas"
           >
-            <PiFilePdfBold />
+            <TbClipboardList />
             <span className="btn-label">{exportingEntregas ? 'Procesando...' : 'Imprimir entregas'}</span>
           </AppButton>
           <AppButton
@@ -2030,7 +2031,7 @@ export default function VentasHistorial() {
             disabled={exportingConsolidado}
             title="Consolidado de artículos para entregas"
           >
-            <PiFilePdfBold />
+            <FaBoxesStacked />
             <span className="btn-label">{exportingConsolidado ? 'Procesando...' : 'Consolidado de artículos'}</span>
           </AppButton>
           {cfeHabilitado && (
@@ -2047,7 +2048,7 @@ export default function VentasHistorial() {
               }}
               title="Envío CFE por lote"
             >
-              <RiSendPlaneFill />
+              <TbStack2 />
               <span className="btn-label">CFE Lote</span>
             </AppButton>
           )}
@@ -2159,11 +2160,11 @@ export default function VentasHistorial() {
             </div>
             <div className="export-modal-actions">
               <AppButton type="button" onClick={() => processTicketsQueue('pdf')} disabled={printingBatch}>
-                <PiFilePdfBold />
+                <TbFileTypePdf />
                 <span>Descargar PDF (uno por uno)</span>
               </AppButton>
               <AppButton type="button" onClick={() => processTicketsQueue('printer')} disabled={printingBatch}>
-                <AiFillPrinter />
+                <TbPrinter />
                 <span>Enviar a impresora (uno por uno)</span>
               </AppButton>
             </div>
@@ -2247,15 +2248,15 @@ export default function VentasHistorial() {
             </div>
             <div className="export-modal-actions">
               <AppButton type="button" onClick={exportarEntregasPDF} disabled={exportingEntregas}>
-                <PiFilePdfBold />
+                <TbFileTypePdf />
                 <span>PDF</span>
               </AppButton>
               <AppButton type="button" onClick={exportarEntregasExcel} disabled={exportingEntregas}>
-                <RiFileExcel2Line />
+                <TbFileSpreadsheet />
                 <span>EXCEL</span>
               </AppButton>
               <AppButton type="button" onClick={imprimirEntregas} disabled={exportingEntregas}>
-                <AiFillPrinter />
+                <TbPrinter />
                 <span>Impresora</span>
               </AppButton>
             </div>
@@ -2339,15 +2340,15 @@ export default function VentasHistorial() {
             </div>
             <div className="export-modal-actions">
               <AppButton type="button" onClick={exportarConsolidadoPDF} disabled={exportingConsolidado}>
-                <PiFilePdfBold />
+                <TbFileTypePdf />
                 <span>PDF</span>
               </AppButton>
               <AppButton type="button" onClick={exportarConsolidadoExcel} disabled={exportingConsolidado}>
-                <RiFileExcel2Line />
+                <TbFileSpreadsheet />
                 <span>EXCEL</span>
               </AppButton>
               <AppButton type="button" onClick={imprimirConsolidado} disabled={exportingConsolidado}>
-                <AiFillPrinter />
+                <TbPrinter />
                 <span>Impresora</span>
               </AppButton>
             </div>
@@ -2378,7 +2379,7 @@ export default function VentasHistorial() {
                 }}
                 disabled={printingId === modalTipoImpresionVentaId}
               >
-                <PiFilePdfBold />
+                <TbFileTypePdf />
                 <span>Solo Factura</span>
               </AppButton>
               <AppButton
@@ -2390,7 +2391,7 @@ export default function VentasHistorial() {
                 }}
                 disabled={printingId === modalTipoImpresionVentaId}
               >
-                <PiFilePdfBold />
+                <TbFileTypePdf />
                 <span>Solo Remito</span>
               </AppButton>
               <AppButton
@@ -2402,7 +2403,7 @@ export default function VentasHistorial() {
                 }}
                 disabled={printingId === modalTipoImpresionVentaId}
               >
-                <PiFilePdfBold />
+                <TbFileTypePdf />
                 <span>Factura + Remito</span>
               </AppButton>
             </div>

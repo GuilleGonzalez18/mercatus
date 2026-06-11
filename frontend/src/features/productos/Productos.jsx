@@ -12,9 +12,7 @@ import { appAlert, appConfirm } from '../../shared/lib/appDialog';
 import AppTable from '../../shared/components/table/AppTable';
 import AppInput from '../../shared/components/fields/AppInput';
 import AppSelect from '../../shared/components/fields/AppSelect';
-import { RiFileExcel2Line } from 'react-icons/ri';
-import { PiFilePdfBold } from 'react-icons/pi';
-import { AiFillPrinter } from 'react-icons/ai';
+import { TbFileTypePdf, TbFileSpreadsheet, TbPrinter, TbBrandWhatsapp } from 'react-icons/tb';
 import AppButton from '../../shared/components/button/AppButton';
 import { PRINT_FONT_FAMILY_CSS } from '../../shared/lib/typography';
 
@@ -1030,7 +1028,7 @@ export default function Productos({ productos = [], setProductos }) {
             )}
             {puedeExportar && (
             <AppButton className="exportar-pdf" title="Exportar" onClick={() => setExportModalOpen(true)}>
-              <img src="/print.svg" alt="" aria-hidden="true" />
+              <TbPrinter aria-hidden="true" />
             </AppButton>
             )}
           </div>
@@ -1064,15 +1062,15 @@ export default function Productos({ productos = [], setProductos }) {
               <p>Elige un formato:</p>
               <div className="export-modal-actions">
                 <AppButton type="button" onClick={() => { exportarPDF(); setExportModalOpen(false); }}>
-                  <PiFilePdfBold />
+                  <TbFileTypePdf />
                   <span>PDF</span>
                 </AppButton>
                 <AppButton type="button" onClick={() => { exportarExcel(); setExportModalOpen(false); }}>
-                  <RiFileExcel2Line />
+                  <TbFileSpreadsheet />
                   <span>EXCEL</span>
                 </AppButton>
                 <AppButton type="button" onClick={() => { imprimirProductos(); setExportModalOpen(false); }}>
-                  <AiFillPrinter />
+                  <TbPrinter />
                   <span>Impresora</span>
                 </AppButton>
               </div>
@@ -1081,15 +1079,15 @@ export default function Productos({ productos = [], setProductos }) {
                   <p className="export-modal-section-title">Imprimir como catálogo</p>
                   <div className="export-modal-actions">
                     <AppButton type="button" onClick={async () => { await exportarCatalogoPDF(); setExportModalOpen(false); }}>
-                      <PiFilePdfBold />
+                      <TbFileTypePdf />
                       <span>Catálogo PDF</span>
                     </AppButton>
                     <AppButton type="button" onClick={() => { imprimirCatalogo(); setExportModalOpen(false); }}>
-                      <AiFillPrinter />
+                      <TbPrinter />
                       <span>Catálogo Impresora</span>
                     </AppButton>
                     <AppButton type="button" onClick={async () => { await compartirCatalogoWhatsApp(); setExportModalOpen(false); }}>
-                      <img src="/whatsapp.svg" alt="" aria-hidden="true" />
+                      <TbBrandWhatsapp aria-hidden="true" />
                       <span>Compartir por WhatsApp</span>
                     </AppButton>
                   </div>

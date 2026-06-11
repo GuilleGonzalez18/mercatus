@@ -12,6 +12,7 @@ import AppInput from '../../shared/components/fields/AppInput';
 import AppSelect from '../../shared/components/fields/AppSelect';
 import AppTextarea from '../../shared/components/fields/AppTextarea';
 import AppButton from '../../shared/components/button/AppButton';
+import { TbShoppingCartPlus, TbBrandWhatsapp, TbFileTypePdf, TbPrinter } from 'react-icons/tb';
 
 const PASOS = ['Productos y carrito', 'Pago y preventa'];
 // Tiempo máximo de espera al confirmar una venta antes de auto-cancelar (ms).
@@ -2306,7 +2307,7 @@ export default function Ventas({
           )}
           <div className="venta-final-actions">
             <AppButton id={ventasButtonId('venta-final', 'nueva-venta')} type="button" className="secundario" onClick={iniciarNuevaVenta}>
-              <img src="/newsale.svg" alt="" aria-hidden="true" />
+              <TbShoppingCartPlus aria-hidden="true" />
               Nueva venta
             </AppButton>
             <AppButton
@@ -2320,15 +2321,15 @@ export default function Ventas({
               {cfeLoading ? 'Emitiendo CFE...' : 'Emitir CFE'}
             </AppButton>
             <AppButton id={ventasButtonId('venta-final', 'whatsapp')} type="button" className="whatsapp" onClick={enviarTicketWhatsApp}>
-              <img src="/whatsapp.svg" alt="" aria-hidden="true" />
+              <TbBrandWhatsapp aria-hidden="true" />
               Enviar por WhatsApp
             </AppButton>
             <AppButton id={ventasButtonId('venta-final', 'pdf')} type="button" onClick={descargarTicketPdf}>
-              <img src="/pdf.svg" alt="" aria-hidden="true" />
+              <TbFileTypePdf aria-hidden="true" />
               PDF
             </AppButton>
             <AppButton id={ventasButtonId('venta-final', 'imprimir')} type="button" onClick={imprimirTicket}>
-              <img src="/print.svg" alt="" aria-hidden="true" />
+              <TbPrinter aria-hidden="true" />
               Imprimir ticket
             </AppButton>
           </div>

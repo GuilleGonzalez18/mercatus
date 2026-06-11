@@ -5,8 +5,7 @@ import AppTable from '../../shared/components/table/AppTable';
 import AppInput from '../../shared/components/fields/AppInput';
 import AppSelect from '../../shared/components/fields/AppSelect';
 import AppButton from '../../shared/components/button/AppButton';
-import { FaFileExcel } from 'react-icons/fa6';
-import { BsFiletypePng } from 'react-icons/bs';
+import { TbFileSpreadsheet, TbFileTypePng } from 'react-icons/tb';
 import { usePermisos } from '../../core/PermisosContext';
 import {
   Area,
@@ -876,7 +875,7 @@ export default function Estadisticas({ compact = false }) {
                       onClick={exportarGraficaStockExcel}
                       disabled={!puedeExportar || stockLoading || !stockChartWithVariation.length}
                     >
-                      <FaFileExcel aria-hidden="true" />
+                      <TbFileSpreadsheet aria-hidden="true" />
                       <span>Excel</span>
                     </AppButton>
                     <AppButton
@@ -885,7 +884,7 @@ export default function Estadisticas({ compact = false }) {
                       onClick={exportarGraficaStockPng}
                       disabled={!puedeExportar || stockLoading || !stockChartWithVariation.length}
                     >
-                      <BsFiletypePng aria-hidden="true" />
+                      <TbFileTypePng aria-hidden="true" />
                       <span>PNG</span>
                     </AppButton>
                   </div>
@@ -945,7 +944,7 @@ export default function Estadisticas({ compact = false }) {
                         onClick={exportarGraficaVentasUsuarioExcel}
                         disabled={!puedeExportar || stockLoading || !ventasUsuarioStockChart.length}
                       >
-                        <FaFileExcel aria-hidden="true" />
+                        <TbFileSpreadsheet aria-hidden="true" />
                         <span>Excel</span>
                       </AppButton>
                       <AppButton
@@ -954,7 +953,7 @@ export default function Estadisticas({ compact = false }) {
                         onClick={exportarGraficaVentasUsuarioPng}
                         disabled={!puedeExportar || stockLoading || !ventasUsuarioStockChart.length}
                       >
-                        <BsFiletypePng aria-hidden="true" />
+                        <TbFileTypePng aria-hidden="true" />
                         <span>PNG</span>
                       </AppButton>
                     </div>

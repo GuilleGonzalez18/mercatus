@@ -990,6 +990,7 @@ body.dashboard-scroll-lock {
   transition: border-color 0.15s, background 0.15s;
 }
 .wizard-category-btn img { width: 20px; height: 20px; object-fit: contain; }
+.wizard-category-btn svg { width: 20px; height: 20px; }
 .wizard-category-btn:hover { border-color: var(--color-primary, #2563eb); background: var(--color-primary-soft); }
 
 /* Wizard de tipos */

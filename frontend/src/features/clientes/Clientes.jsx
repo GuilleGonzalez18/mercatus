@@ -8,9 +8,7 @@ import { usePermisos } from '../../core/PermisosContext';
 import { getPrimaryRgb, loadLogoForPdf } from '../../shared/lib/pdfColors';
 import './Clientes.css';
 import { appAlert, appConfirm } from '../../shared/lib/appDialog';
-import { RiFileExcel2Line } from 'react-icons/ri';
-import { PiFilePdfBold } from 'react-icons/pi';
-import { AiFillPrinter } from 'react-icons/ai';
+import { TbFileTypePdf, TbFileSpreadsheet, TbPrinter } from 'react-icons/tb';
 import AppTable from '../../shared/components/table/AppTable';
 import AppInput from '../../shared/components/fields/AppInput';
 import AppSelect from '../../shared/components/fields/AppSelect';
@@ -832,7 +830,7 @@ export default function Clientes() {
             </AppButton>
             {puedeExportar && (
               <AppButton type="button" className="icon-btn" title="Exportar" onClick={() => setExportModalOpen(true)}>
-                <img src="/print.svg" alt="" aria-hidden="true" />
+                <TbPrinter aria-hidden="true" />
               </AppButton>
             )}
           </>
@@ -862,15 +860,15 @@ export default function Clientes() {
             <p>Elige un formato:</p>
             <div className="export-modal-actions">
               <AppButton type="button" onClick={() => { exportarPDF(); setExportModalOpen(false); }}>
-                <PiFilePdfBold />
+                <TbFileTypePdf />
                 <span>PDF</span>
               </AppButton>
               <AppButton type="button" onClick={() => { exportarExcel(); setExportModalOpen(false); }}>
-                <RiFileExcel2Line />
+                <TbFileSpreadsheet />
                 <span>EXCEL</span>
               </AppButton>
               <AppButton type="button" onClick={() => { imprimirClientes(); setExportModalOpen(false); }}>
-                <AiFillPrinter />
+                <TbPrinter />
                 <span>Impresora</span>
               </AppButton>
             </div>
