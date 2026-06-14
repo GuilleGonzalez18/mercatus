@@ -11,9 +11,12 @@ const Stock           = lazy(() => import('../stock/Stock'));
 const Configuracion   = lazy(() => import('../configuracion/Configuracion'));
 import './Dashboard.css';
 import { api } from '../../core/api';
-import { CgArrowsExchange } from 'react-icons/cg';
+import {
+  TbShoppingCartPlus, TbReceipt, TbBox, TbUsers, TbUsersGroup, TbUserCircle,
+  TbHistory, TbArrowsExchange, TbChartLine, TbSettings, TbLogout,
+  TbCurrencyDollar, TbStack2, TbPigMoney,
+} from 'react-icons/tb';
 import { FiShoppingCart, FiSliders, FiX, FiPlus, FiCheck } from 'react-icons/fi';
-import { RiSettings3Line } from 'react-icons/ri';
 import { APP_VERSION } from '../../core/version';
 import AppButton from '../../shared/components/button/AppButton';
 import { FilterPanelProvider, useFilterPanel } from '../../shared/lib/filterPanel';
@@ -25,7 +28,7 @@ import AvisoBanner from '../../shared/components/avisos/AvisoBanner';
 
 const WIDGET_CATALOG = {
   ventas: {
-    label: 'Ventas', icon: '/dollar.svg', requiresEmpresa: false,
+    label: 'Ventas', icon: TbCurrencyDollar, requiresEmpresa: false,
     tipos: {
       cantidad: {
         label: 'Cantidad',
@@ -54,7 +57,7 @@ const WIDGET_CATALOG = {
     },
   },
   productos: {
-    label: 'Productos', icon: '/product.svg', requiresEmpresa: false,
+    label: 'Productos', icon: TbBox, requiresEmpresa: false,
     tipos: {
       cantidad: {
         label: 'Cantidad',
@@ -74,7 +77,7 @@ const WIDGET_CATALOG = {
     },
   },
   clientes: {
-    label: 'Clientes', icon: '/client.svg', requiresEmpresa: false,
+    label: 'Clientes', icon: TbUsers, requiresEmpresa: false,
     tipos: {
       cantidad: {
         label: 'Cantidad',
@@ -94,7 +97,7 @@ const WIDGET_CATALOG = {
     },
   },
   usuarios: {
-    label: 'Usuarios', icon: '/user.svg', requiresEmpresa: false,
+    label: 'Usuarios', icon: TbUsersGroup, requiresEmpresa: false,
     tipos: {
       cantidad: {
         label: 'Cantidad',
@@ -114,7 +117,7 @@ const WIDGET_CATALOG = {
     },
   },
   stock: {
-    label: 'Stock', icon: '/grid-view.svg', requiresEmpresa: false,
+    label: 'Stock', icon: TbStack2, requiresEmpresa: false,
     tipos: {
       cantidad: {
         label: 'Cantidad',
@@ -124,7 +127,7 @@ const WIDGET_CATALOG = {
     },
   },
   ganancia: {
-    label: 'Ganancia', icon: '/cash.svg', requiresEmpresa: true,
+    label: 'Ganancia', icon: TbPigMoney, requiresEmpresa: true,
     tipos: {
       cantidad: {
         label: 'Cantidad',
@@ -260,7 +263,7 @@ function WidgetCard({ widget, editMode, onRemove, onUpdate, idx }) {
     setEditing(false);
   };
 
-  const iconSrc = WIDGET_CATALOG[widget.categoria]?.icon ?? '/dollar.svg';
+  const KpiIcon = WIDGET_CATALOG[widget.categoria]?.icon ?? TbCurrencyDollar;
   const timeLabel = isComparacion
     ? RANGE_LABEL[widget.periodo_comparacion] || widget.periodo_comparacion
     : RANGE_LABEL[widget.rango] || widget.rango;
@@ -293,7 +296,7 @@ function WidgetCard({ widget, editMode, onRemove, onUpdate, idx }) {
           title={editMode ? 'Clic para editar' : undefined}
         >
           <div className="dashboard-kpi-icon-wrap" aria-hidden="true">
-            <img src={iconSrc} alt="" className="dashboard-kpi-icon" />
+            <KpiIcon className="dashboard-kpi-icon" aria-hidden="true" />
           </div>
           <div className="dashboard-kpi-content">
             <span className="widget-label">{widget.etiqueta}</span>
@@ -432,12 +435,15 @@ function AddWidgetCard({ onAdd, canVerEmpresa }) {
         <>
             <p className="add-widget-title">Elegí una categoría</p>
             <div className="wizard-step-categories">
-              {categorias.map(([key, cat]) => (
-                <button id={`dashboard-widget-category-${toButtonIdPart(key)}`} key={key} type="button" className="wizard-category-btn" onClick={() => handleSelectCategoria(key)}>
-                  <img src={cat.icon} alt="" />
-                  <span>{cat.label}</span>
-                </button>
-              ))}
+              {categorias.map(([key, cat]) => {
+                const CatIcon = cat.icon;
+                return (
+                  <button id={`dashboard-widget-category-${toButtonIdPart(key)}`} key={key} type="button" className="wizard-category-btn" onClick={() => handleSelectCategoria(key)}>
+                    <CatIcon aria-hidden="true" />
+                    <span>{cat.label}</span>
+                  </button>
+                );
+              })}
           </div>
         </>
       )}
@@ -512,16 +518,16 @@ function AddWidgetCard({ onAdd, canVerEmpresa }) {
 }
 
 const OPCIONES = [
-  { key: 'nueva-venta', label: 'Nueva venta', topbarTitle: 'Nueva venta', icon: '/newsale.svg' },
-  { key: 'ventas', label: 'Ventas', topbarTitle: 'Ventas realizadas', icon: '/cart.svg' },
-  { key: 'productos', label: 'Productos', topbarTitle: 'Lista de productos', icon: '/product.svg' },
-  { key: 'clientes', label: 'Clientes', topbarTitle: 'Lista de clientes', icon: '/client.svg' },
-  { key: 'usuarios', label: 'Usuarios', topbarTitle: 'Usuarios del sistema', icon: '/user.svg' },
-  { key: 'mi-usuario', label: 'Mi usuario', topbarTitle: 'Mi usuario', icon: '/user.svg' },
-  { key: 'auditoria', label: 'Auditoría', topbarTitle: 'Auditoría y movimientos de stock', icon: '/auditory.svg' },
-  { key: 'stock', label: 'Stock', topbarTitle: 'Stock', icon: 'stock-control' },
-  { key: 'estadisticas', label: 'Estadísticas', topbarTitle: 'Estadísticas comerciales', icon: '/stats.svg' },
-  { key: 'configuracion', label: 'Configuración', topbarTitle: 'Configuración del sistema', icon: 'configuracion' },
+  { key: 'nueva-venta', label: 'Nueva venta', topbarTitle: 'Nueva venta', icon: TbShoppingCartPlus },
+  { key: 'ventas', label: 'Ventas', topbarTitle: 'Ventas realizadas', icon: TbReceipt },
+  { key: 'productos', label: 'Productos', topbarTitle: 'Lista de productos', icon: TbBox },
+  { key: 'clientes', label: 'Clientes', topbarTitle: 'Lista de clientes', icon: TbUsers },
+  { key: 'usuarios', label: 'Usuarios', topbarTitle: 'Usuarios del sistema', icon: TbUsersGroup },
+  { key: 'mi-usuario', label: 'Mi usuario', topbarTitle: 'Mi usuario', icon: TbUserCircle },
+  { key: 'auditoria', label: 'Auditoría', topbarTitle: 'Auditoría y movimientos de stock', icon: TbHistory },
+  { key: 'stock', label: 'Stock', topbarTitle: 'Stock', icon: TbArrowsExchange },
+  { key: 'estadisticas', label: 'Estadísticas', topbarTitle: 'Estadísticas comerciales', icon: TbChartLine },
+  { key: 'configuracion', label: 'Configuración', topbarTitle: 'Configuración del sistema', icon: TbSettings },
 ];
 
 function Placeholder({ titulo, icon }) {
@@ -753,25 +759,24 @@ function DashboardInner({ user, pantalla, productos, setProductos, onNavigate, o
           )}
         </div>
         <nav className="dashboard-nav">
-          {opcionesMenu.map(({ key, label, icon }) => (
-            <button
-              id={`dashboard-nav-${toButtonIdPart(key)}`}
-              key={key}
-              type="button"
-              className={pantallaKey === key ? 'active' : ''}
-              onClick={() => handleNavigate(key)}
-            >
-              {icon === 'stock-control'
-                ? <CgArrowsExchange className="nav-icon-svg" aria-hidden="true" />
-                : icon === 'configuracion'
-                ? <RiSettings3Line className="nav-icon-svg" aria-hidden="true" />
-                : <img src={icon} alt="" className="nav-icon-img" aria-hidden="true" />}
-              {label}
-            </button>
-          ))}
+          {opcionesMenu.map((op) => {
+            const Icon = op.icon;
+            return (
+              <button
+                id={`dashboard-nav-${toButtonIdPart(op.key)}`}
+                key={op.key}
+                type="button"
+                className={pantallaKey === op.key ? 'active' : ''}
+                onClick={() => handleNavigate(op.key)}
+              >
+                <Icon className="nav-icon-svg" aria-hidden="true" />
+                {op.label}
+              </button>
+            );
+          })}
         </nav>
         <AppButton id="dashboard-logout" type="button" tone="danger" className="dashboard-logout" onClick={handleLogout}>
-          <img src="/logout.svg" alt="" className="logout-icon-img" aria-hidden="true" />
+          <TbLogout className="logout-icon-img" aria-hidden="true" />
           Cerrar sesión
         </AppButton>
         <small className="dashboard-version-label">v. {APP_VERSION}</small>

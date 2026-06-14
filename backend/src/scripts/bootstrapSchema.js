@@ -572,6 +572,7 @@ const statements = [
     pdf_remito jsonb NOT NULL DEFAULT '{}'::jsonb,
     cfe_ambiente varchar(20) NOT NULL DEFAULT 'LOCAL',
     cfe_auto_envio boolean NOT NULL DEFAULT true,
+    descarga_automatica_pdf boolean NOT NULL DEFAULT false,
     updated_at timestamp without time zone NOT NULL DEFAULT now()
   );
   `,

@@ -12,6 +12,7 @@ import AppInput from '../../shared/components/fields/AppInput';
 import AppSelect from '../../shared/components/fields/AppSelect';
 import AppTextarea from '../../shared/components/fields/AppTextarea';
 import AppButton from '../../shared/components/button/AppButton';
+import { TbShoppingCartPlus, TbBrandWhatsapp, TbFileTypePdf, TbPrinter } from 'react-icons/tb';
 
 const PASOS = ['Productos y carrito', 'Pago y preventa'];
 // Tiempo máximo de espera al confirmar una venta antes de auto-cancelar (ms).
@@ -1315,6 +1316,24 @@ export default function Ventas({
     setTicketImpreso(true);
   };
 
+  // Descarga automática del PDF del ticket al finalizar la venta, solo si la empresa
+  // tiene activada la descarga automática. Si está inactiva, el usuario descarga manual
+  // desde los botones de la pantalla final. El ref evita descargas repetidas por re-render;
+  // el ref a la función mantiene el efecto sin depender de una función recreada en cada render.
+  const autoTicketDescargadoRef = useRef(false);
+  const descargarTicketPdfRef = useRef(descargarTicketPdf);
+  descargarTicketPdfRef.current = descargarTicketPdf;
+  useEffect(() => {
+    if (!ventaFinalizada) {
+      autoTicketDescargadoRef.current = false;
+      return;
+    }
+    if (empresa?.descarga_automatica_pdf !== true) return;
+    if (autoTicketDescargadoRef.current) return;
+    autoTicketDescargadoRef.current = true;
+    descargarTicketPdfRef.current().catch(() => {});
+  }, [ventaFinalizada, empresa]);
+
   const descargarCfeAnotado = async (ventaId) => {
     const text = await api.getVentaCFEAnnotated(ventaId);
     const blob = new Blob([text], { type: 'text/plain' });
@@ -1541,8 +1560,9 @@ export default function Ventas({
       setSelectorClienteAbierto(false);
       setBusquedaCliente('');
 
-      // Descargar JSON CFE automáticamente (con comentarios JSONC)
-      if (ventaCreada?.id) {
+      // Descargar JSON CFE automáticamente (con comentarios JSONC) — solo si la empresa
+      // tiene activada la descarga automática de PDFs al finalizar la venta.
+      if (ventaCreada?.id && empresa?.descarga_automatica_pdf === true) {
         descargarCfeAnotado(ventaCreada.id)
           .catch(() => {}); // silencioso, no interrumpe el flujo
       }
@@ -2287,7 +2307,7 @@ export default function Ventas({
           )}
           <div className="venta-final-actions">
             <AppButton id={ventasButtonId('venta-final', 'nueva-venta')} type="button" className="secundario" onClick={iniciarNuevaVenta}>
-              <img src="/newsale.svg" alt="" aria-hidden="true" />
+              <TbShoppingCartPlus aria-hidden="true" />
               Nueva venta
             </AppButton>
             <AppButton
@@ -2301,15 +2321,15 @@ export default function Ventas({
               {cfeLoading ? 'Emitiendo CFE...' : 'Emitir CFE'}
             </AppButton>
             <AppButton id={ventasButtonId('venta-final', 'whatsapp')} type="button" className="whatsapp" onClick={enviarTicketWhatsApp}>
-              <img src="/whatsapp.svg" alt="" aria-hidden="true" />
+              <TbBrandWhatsapp aria-hidden="true" />
               Enviar por WhatsApp
             </AppButton>
             <AppButton id={ventasButtonId('venta-final', 'pdf')} type="button" onClick={descargarTicketPdf}>
-              <img src="/pdf.svg" alt="" aria-hidden="true" />
+              <TbFileTypePdf aria-hidden="true" />
               PDF
             </AppButton>
             <AppButton id={ventasButtonId('venta-final', 'imprimir')} type="button" onClick={imprimirTicket}>
-              <img src="/print.svg" alt="" aria-hidden="true" />
+              <TbPrinter aria-hidden="true" />
               Imprimir ticket
             </AppButton>
           </div>

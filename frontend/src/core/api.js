@@ -351,6 +351,13 @@ export const api = {
     const suffix = q.toString();
     return request(`/ventas/entregas/resumen${suffix ? `?${suffix}` : ''}`);
   },
+  getEntregasConsolidado: ({ desde, hasta } = {}) => {
+    const q = new URLSearchParams();
+    if (desde) q.set('desde', String(desde));
+    if (hasta) q.set('hasta', String(hasta));
+    const suffix = q.toString();
+    return request(`/ventas/entregas/consolidado${suffix ? `?${suffix}` : ''}`);
+  },
   getVentaById: (id) => request(`/ventas/${id}`),
   getVentaCFE: (id) => request(`/ventas/${id}/cfe`),
   getVentaCFEAnnotated: (id) => requestText(`/ventas/${id}/cfe?annotated=1`),

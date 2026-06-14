@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { FaFileExcel, FaFilePdf } from 'react-icons/fa6';
+import { TbFileSpreadsheet, TbFileTypePdf } from 'react-icons/tb';
 import { api } from '../../core/api';
 import { useConfig } from '../../core/ConfigContext';
 import { getPrimaryRgb, loadLogoForPdf } from '../../shared/lib/pdfColors';
@@ -318,7 +318,7 @@ export default function FlujoStock({ productos = [] }) {
               disabled={exportando}
               title="Exportar todos los productos a Excel"
             >
-              <FaFileExcel aria-hidden="true" />
+              <TbFileSpreadsheet aria-hidden="true" />
               <span>Excel</span>
             </AppButton>
             <AppButton
@@ -328,7 +328,7 @@ export default function FlujoStock({ productos = [] }) {
               disabled={exportando}
               title="Exportar todos los productos a PDF"
             >
-              <FaFilePdf aria-hidden="true" />
+              <TbFileTypePdf aria-hidden="true" />
               <span>PDF</span>
             </AppButton>
           </div>

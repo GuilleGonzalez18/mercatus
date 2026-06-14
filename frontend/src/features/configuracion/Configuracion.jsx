@@ -51,7 +51,7 @@ function compressImage(dataUrl, maxW, maxH, quality) {
 
 // ── TAB EMPRESA ───────────────────────────────────────────────────────────────
 
-const DATOS_FIELDS  = ['nombre', 'razon_social', 'rut', 'direccion', 'telefono', 'correo', 'website', 'giro', 'ciudad', 'departamento', 'cfe_ambiente', 'cfe_auto_envio'];
+const DATOS_FIELDS  = ['nombre', 'razon_social', 'rut', 'direccion', 'telefono', 'correo', 'website', 'giro', 'ciudad', 'departamento', 'cfe_ambiente', 'cfe_auto_envio', 'descarga_automatica_pdf'];
 const LOGO_FIELDS   = ['logo_base64', 'logo_tamano', 'logo_bg_color'];
 const FONDO_FIELDS  = ['fondo_base64', 'fondo_opacidad'];
 const COLORES_FIELDS = [
@@ -76,6 +76,7 @@ function buildForm(emp) {
     departamento:         emp.departamento || '',
     cfe_ambiente:         emp.cfe_ambiente || 'LOCAL',
     cfe_auto_envio:       emp.cfe_auto_envio !== false,
+    descarga_automatica_pdf: emp.descarga_automatica_pdf === true,
     logo_base64:          emp.logo_base64 || null,
     color_primary:        emp.color_primary || '#375f8c',
     color_primary_strong: emp.color_primary_strong || '#294c74',
@@ -752,6 +753,19 @@ const saveSection = async (sectionKey, fields) => {
             </span>
           </div>
         )}
+        <div className="config-field-row config-field-row--checkbox">
+          <label className="config-field-label">Descargar PDFs automáticamente al finalizar la venta</label>
+          <input
+            type="checkbox"
+            className="config-checkbox"
+            checked={form.descarga_automatica_pdf}
+            onChange={(e) => setForm((prev) => ({ ...prev, descarga_automatica_pdf: e.target.checked }))}
+          />
+          <span className="config-hint" style={{ gridColumn: '2', marginTop: 0 }}>
+            Si está activo, al confirmar una venta se descargan automáticamente el PDF del ticket y el comprobante CFE.
+            Si está inactivo, no se descarga nada solo: la pantalla final sigue mostrando los botones para descargar o imprimir manualmente.
+          </span>
+        </div>
         <SectionActions
           dirty={isDirty(DATOS_FIELDS)}
           saving={savingSection === 'datos'}
