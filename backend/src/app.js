@@ -87,3 +87,5 @@ app.use((error, _req, res, _next) => {
     context: 'express',
   });
 });
+
+export default app;
